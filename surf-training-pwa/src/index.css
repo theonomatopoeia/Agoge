@@ -1,0 +1,98 @@
+/* ═══════════════════════════════════════════════════════════════
+   SURF TRAINING PWA — Global Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg-primary: #08080c;
+  --bg-card: #0c0c10;
+  --bg-elevated: #111116;
+  --bg-hover: #1a1a2e;
+  
+  --border-subtle: #1a1a1f;
+  --border-active: #00d4aa44;
+  
+  --text-primary: #e8e8ec;
+  --text-secondary: #888;
+  --text-muted: #555;
+  --text-dim: #333;
+  
+  --accent-gym: #00d4aa;
+  --accent-surf: #48dbfb;
+  --accent-softball: #c39bd3;
+  --accent-alt: #82e0aa;
+  --accent-warmup: #f39c12;
+  
+  --font-body: 'Instrument Sans', -apple-system, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  /* iOS safe areas */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  /* Prevent rubber-band overscroll showing white bg */
+  background-color: var(--bg-primary);
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Prevent pull-to-refresh in standalone mode */
+  overscroll-behavior-y: contain;
+}
+
+/* iOS standalone mode: add safe area padding */
+@media all and (display-mode: standalone) {
+  body {
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
+    padding-left: var(--sal);
+    padding-right: var(--sar);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #222;
+  border-radius: 3px;
+}
+
+/* Prevent iOS tap highlight */
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth animations */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
