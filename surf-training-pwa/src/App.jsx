@@ -472,6 +472,180 @@ function AnimatedExercise({ exerciseName, width = 380, height = 340 }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// EXERCISE ALTERNATIVES DATABASE (Phase 2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const EXERCISE_ALTERNATIVES = {
+  "Cable Row (seated or standing)": [
+    { name: "Dumbbell Bent-Over Row", equip: "Dumbbells", note: "Same pulling pattern, free weight version" },
+    { name: "Resistance Band Row", equip: "Band + anchor", note: "Travel-friendly, same muscles" },
+    { name: "TRX / Ring Row", equip: "TRX or rings", note: "Bodyweight pull, adjustable difficulty" },
+  ],
+  "Bulgarian Split Squat": [
+    { name: "Reverse Lunge (weighted)", equip: "Dumbbells", note: "Easier balance, same single-leg pattern" },
+    { name: "Step-Up (weighted)", equip: "Bench + DBs", note: "More knee-friendly, still unilateral" },
+    { name: "Split Squat (floor)", equip: "None / DBs", note: "No bench needed, same movement" },
+  ],
+  "Half-Kneeling Cable Chop (high to low)": [
+    { name: "Band Woodchop (kneeling)", equip: "Band + anchor", note: "Same rotational pattern without cable" },
+    { name: "Dumbbell Woodchop", equip: "Dumbbell", note: "Free weight rotation, slightly different resistance curve" },
+    { name: "Med Ball Rotational Slam", equip: "Med ball", note: "Explosive version, power emphasis" },
+  ],
+  "Single-Arm Dumbbell Row": [
+    { name: "Chest-Supported DB Row", equip: "Incline bench + DB", note: "Removes core demand, isolates lats" },
+    { name: "Band Seated Row", equip: "Band", note: "Lighter, good for travel or rehab" },
+    { name: "Inverted Row", equip: "Bar or TRX", note: "Bodyweight pulling, scalable" },
+  ],
+  "Goblet Squat": [
+    { name: "Bodyweight Squat", equip: "None", note: "No equipment needed, focus on depth" },
+    { name: "DB Sumo Squat", equip: "Dumbbell", note: "Wider stance, more adductor/glute" },
+    { name: "Wall Sit", equip: "Wall", note: "Isometric hold, knee-friendly" },
+  ],
+  "Face Pulls": [
+    { name: "Band Pull-Aparts (heavy)", equip: "Band", note: "Same muscles, no cable needed" },
+    { name: "Prone Y-T Raises", equip: "Light DBs or none", note: "Floor version, great for travel" },
+    { name: "Reverse Dumbbell Flyes", equip: "Light DBs", note: "Isolates rear delts" },
+  ],
+  "Dead Hang": [
+    { name: "Doorframe Stretch", equip: "Doorframe", note: "Passive shoulder stretch, no bar needed" },
+    { name: "Wall Lat Stretch", equip: "Wall", note: "Targets lats, gentle on grip" },
+    { name: "Band Overhead Stretch", equip: "Band", note: "Active lat lengthening" },
+  ],
+  "Supine Hip Flexor Stretch": [
+    { name: "Couch Stretch", equip: "Wall / couch", note: "Deeper hip flexor stretch, more intense" },
+    { name: "Standing Hip Flexor Stretch", equip: "None", note: "Quick, do anywhere" },
+    { name: "Thomas Stretch (off table)", equip: "Table / bench", note: "Gravity-assisted, very effective" },
+  ],
+  "Kettlebell Swings": [
+    { name: "Dumbbell Swings", equip: "Dumbbell", note: "Same pattern, DB substitute for KB" },
+    { name: "Band Pull-Throughs", equip: "Band + anchor", note: "Same hip hinge, no impact" },
+    { name: "Hip Thrusts", equip: "Bench + barbell/DB", note: "Heavier glute load, no ballistic" },
+  ],
+  "Single-Leg Romanian Deadlift (DB)": [
+    { name: "Staggered Stance RDL", equip: "DBs", note: "Easier balance, still hip-dominant" },
+    { name: "Good Mornings", equip: "Barbell or band", note: "Bilateral hinge, simpler" },
+    { name: "Nordic Curl (eccentric)", equip: "Pad + anchor", note: "Hamstring focus, bodyweight only" },
+  ],
+  "Box Jumps": [
+    { name: "Squat Jumps", equip: "None", note: "No box needed, same explosiveness" },
+    { name: "Broad Jumps", equip: "None", note: "Horizontal power, knee-friendlier landing" },
+    { name: "Explosive Step-Ups", equip: "Bench", note: "Single-leg power, lower impact" },
+  ],
+  "Pallof Press (cable)": [
+    { name: "Band Pallof Press", equip: "Band + anchor", note: "Identical pattern, portable" },
+    { name: "Dead Bug", equip: "None", note: "Anti-extension core, floor-based" },
+    { name: "Plank Shoulder Taps", equip: "None", note: "Anti-rotation, bodyweight" },
+  ],
+  "Reverse Lunge to Knee Drive": [
+    { name: "Walking Lunges", equip: "None / DBs", note: "Continuous movement, same pattern" },
+    { name: "Step-Up to Knee Drive", equip: "Bench", note: "Elevated start, more glute" },
+    { name: "Bodyweight Split Squat Jump", equip: "None", note: "Explosive, plyometric version" },
+  ],
+  "Landmine Press (single arm)": [
+    { name: "DB Arnold Press", equip: "Dumbbell", note: "Rotational press, seated or standing" },
+    { name: "Half-Kneeling DB Press", equip: "Dumbbell", note: "Same kneeling anti-rotation demand" },
+    { name: "Push Press (DB)", equip: "Dumbbell", note: "Uses leg drive, heavier overhead" },
+  ],
+  "Front Squat (DB or Goblet)": [
+    { name: "Goblet Squat", equip: "KB or DB", note: "Simpler grip, same anterior load" },
+    { name: "Zercher Squat", equip: "Barbell", note: "Barbell in elbow crease, brutal core" },
+    { name: "Belt Squat", equip: "Belt squat machine", note: "No spinal load, pure legs" },
+  ],
+  "Push-Up to Rotation (T-Push-Up)": [
+    { name: "Push-Ups + Side Plank", equip: "None", note: "Separated movements, easier coordination" },
+    { name: "Spiderman Push-Ups", equip: "None", note: "Hip flexion adds mobility" },
+    { name: "Hindu Push-Ups", equip: "None", note: "Flowing movement, shoulder + spine mobility" },
+  ],
+  "Cable Low-to-High Chop": [
+    { name: "Band Low-to-High Chop", equip: "Band", note: "Same vector, portable" },
+    { name: "Med Ball Rotational Throw", equip: "Med ball + wall", note: "Explosive, power emphasis" },
+    { name: "DB Uppercut", equip: "Light DB", note: "Standing rotation, simpler setup" },
+  ],
+  "Farmer Carry": [
+    { name: "Suitcase Carry", equip: "1 heavy DB/KB", note: "Single-side, anti-lateral flexion" },
+    { name: "Waiter Walk", equip: "KB or DB", note: "Overhead carry, shoulder stability" },
+    { name: "Plate Pinch Walk", equip: "Weight plates", note: "Grip-focused, lighter total load" },
+  ],
+  // Warmup exercises
+  "90/90 Hip Switches": [
+    { name: "Seated Hip Circles", equip: "None", note: "Easier entry point for stiff hips" },
+    { name: "Butterfly Stretch", equip: "None", note: "Static adductor/hip opener" },
+    { name: "Frog Stretch", equip: "None", note: "Deeper groin/hip opening" },
+  ],
+  "Band Pull-Aparts": [
+    { name: "Wall Slides", equip: "Wall", note: "Scapular activation, no band needed" },
+    { name: "Scapular Push-Ups", equip: "None", note: "Serratus and scapular mobility" },
+    { name: "Light DB Reverse Flyes", equip: "Light DBs", note: "Same muscles, different tool" },
+  ],
+  "Cat-Cow + Thread the Needle": [
+    { name: "Seated Spinal Waves", equip: "Chair", note: "Office-friendly spinal mobility" },
+    { name: "Quadruped Rockbacks", equip: "None", note: "Hip + spine combined" },
+    { name: "Book Openers", equip: "None", note: "Side-lying T-spine rotation" },
+  ],
+  "Hip CARs (Controlled Articular Rotations)": [
+    { name: "Standing Hip Circles", equip: "Wall for balance", note: "Simpler circular pattern" },
+    { name: "Fire Hydrants", equip: "None", note: "Quadruped hip abduction" },
+    { name: "Clamshells", equip: "None / band", note: "Side-lying hip rotation" },
+  ],
+  "Glute Bridges": [
+    { name: "Bird Dogs", equip: "None", note: "Core + glute activation combo" },
+    { name: "Donkey Kicks", equip: "None", note: "Isolation glute activation" },
+    { name: "Single-Leg Glute Bridge", equip: "None", note: "Harder unilateral version" },
+  ],
+  "Lunge + Reach Rotation": [
+    { name: "World's Greatest Stretch", equip: "None", note: "Similar multi-joint opener" },
+    { name: "Spiderman Stretch", equip: "None", note: "Deep lunge + rotation" },
+    { name: "Inchworm", equip: "None", note: "Hamstrings + shoulders warmup" },
+  ],
+  "Foam Roll: T-spine + Lats": [
+    { name: "Lacrosse Ball T-spine", equip: "Lacrosse ball", note: "More targeted pressure" },
+    { name: "Book Openers (side-lying)", equip: "None", note: "Active T-spine rotation" },
+    { name: "Wall Angels", equip: "Wall", note: "Active shoulder + T-spine" },
+  ],
+  "Shoulder CARs": [
+    { name: "Arm Circles (slow)", equip: "None", note: "Simpler circular pattern" },
+    { name: "Band Pass-Throughs", equip: "Band or dowel", note: "Full ROM, great warmup" },
+    { name: "Wall Angels", equip: "Wall", note: "Scapular + shoulder mobility" },
+  ],
+  "Deep Squat Hold + Shift": [
+    { name: "Assisted Squat Hold", equip: "Doorframe/post", note: "Hold onto something for balance" },
+    { name: "Goblet Squat Hold", equip: "KB or DB", note: "Counterbalance helps depth" },
+    { name: "Cossack Squat", equip: "None", note: "Lateral hip + ankle mobility" },
+  ],
+  // Finisher exercises
+  "TRX or Cable Y-T-W Raises": [
+    { name: "Light DB Y-T-W", equip: "Light DBs", note: "Prone on bench, same pattern" },
+    { name: "Band Pull-Aparts + Ext Rotation", equip: "Band", note: "Combo movement, portable" },
+    { name: "Prone I-Y-T Raises", equip: "None", note: "Floor version, no equipment" },
+  ],
+  "Single-Leg Balance Reach (3-way)": [
+    { name: "BOSU Ball Balance", equip: "BOSU ball", note: "Unstable surface challenge" },
+    { name: "Eyes-Closed Single-Leg Stand", equip: "None", note: "Proprioception challenge" },
+    { name: "Star Excursion Balance", equip: "None", note: "8-direction reach pattern" },
+  ],
+  "Pigeon Stretch": [
+    { name: "Figure-4 Stretch (supine)", equip: "None", note: "Gentler on knees, lying down" },
+    { name: "Seated Pigeon (chair)", equip: "Chair", note: "Office-friendly hip opener" },
+    { name: "Thread the Needle (hip)", equip: "None", note: "Side-lying hip rotation stretch" },
+  ],
+  "Band External Rotations": [
+    { name: "Side-Lying External Rotation", equip: "Light DB", note: "Gravity-loaded, isolates cuff" },
+    { name: "Cable External Rotation", equip: "Cable machine", note: "Constant tension version" },
+    { name: "Prone External Rotation", equip: "Light DB", note: "Face-down, gravity-assisted" },
+  ],
+  "Hanging Leg Raises (or knee tucks)": [
+    { name: "Lying Leg Raises", equip: "Floor", note: "No bar needed, floor version" },
+    { name: "V-Ups", equip: "None", note: "Full body crunch, challenging" },
+    { name: "Dead Bug", equip: "None", note: "Anti-extension, lower abs" },
+  ],
+  "Half-Kneeling Hip Flexor Stretch": [
+    { name: "Couch Stretch", equip: "Wall / couch", note: "Deeper stretch, more quad" },
+    { name: "Standing Quad/Hip Flexor Pull", equip: "None", note: "Quick standing option" },
+    { name: "Elevated Hip Flexor Stretch", equip: "Bench", note: "Rear foot elevated for depth" },
+  ],
+};
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EXERCISE DETAIL DATA
@@ -966,11 +1140,11 @@ function WorkoutDetail({ program, onClose, mobile, swaps, onRequestSwap }) {
                   return (
                     <div key={i} style={{marginBottom:mobile?"10px":"14px",paddingLeft:"12px",borderLeft:`2px solid ${s.color}44`,borderRadius:"0 8px 8px 0",padding:mobile?"8px 10px":"10px 12px",backgroundColor:"transparent",minHeight:mobile?"44px":"auto",display:"flex",flexDirection:"column",justifyContent:"center"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"3px",gap:"8px"}}>
-                        <div style={{flex:1,cursor:has?"pointer":"default"}} onClick={()=>has&&setSel({...item,exercise:item.exercise,color:s.color})}>
+                        <button style={{flex:1,cursor:has?"pointer":"default",background:"none",border:"none",padding:0,textAlign:"left"}} onClick={()=>has&&setSel({...item,exercise:item.exercise,color:s.color})}>
                           <span style={{fontSize:mobile?"13px":"14px",fontWeight:600,color:swapped?"#e6b800":"#ddd"}}>{displayName}</span>
                           {swapped && <span style={{fontSize:"9px",color:"#888",marginLeft:"6px"}}>(swapped)</span>}
                           {has && <span style={{fontSize:"10px",color:`${s.color}88`,marginLeft:"8px"}}>&rarr;</span>}
-                        </div>
+                        </button>
                         <div style={{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}}>
                           <span style={{fontSize:"12px",color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{item.sets}</span>
                           {hasAlts && (
@@ -1295,14 +1469,12 @@ function ProgramOverview({ onOpenWorkout, mobile }) {
       <h2 style={{fontSize:"16px",fontWeight:700,color:"#ddd",marginBottom:"20px",fontFamily:"'Instrument Sans',sans-serif"}}>THE THREE SESSIONS</h2>
       <div style={{display:"flex",gap:"12px",flexWrap:"wrap",flexDirection:mobile?"column":"row"}}>
         {["A","B","C"].map(k => { const p = WORKOUT_PROGRAMS[k]; return (
-          <div key={k} onClick={() => onOpenWorkout(k)} style={{flex:mobile?"none":"1 1 200px",backgroundColor:"#0c0c10",borderRadius:"14px",padding:mobile?"16px":"20px",border:"1px solid #1a1a1f",cursor:"pointer",transition:"all 0.2s"}}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor="#00d4aa44";e.currentTarget.style.transform="translateY(-2px)";}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor="#1a1a1f";e.currentTarget.style.transform="translateY(0)";}}>
+          <button key={k} onClick={() => onOpenWorkout(k)} style={{flex:mobile?"none":"1 1 200px",backgroundColor:"#0c0c10",borderRadius:"14px",padding:mobile?"16px":"20px",border:"1px solid #1a1a1f",cursor:"pointer",transition:"all 0.2s",textAlign:"left"}}>
             <div style={{fontSize:"10px",letterSpacing:"2px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace",marginBottom:"8px"}}>WORKOUT {k}</div>
             <div style={{fontSize:"15px",fontWeight:700,color:"#ddd",marginBottom:"6px"}}>{p.name}</div>
             <div style={{fontSize:"12px",color:"#666",lineHeight:1.5}}>{p.focus}</div>
             <div style={{fontSize:"11px",color:"#00d4aa66",marginTop:"12px"}}>Tap for full breakdown &rarr;</div>
-          </div>
+          </button>
         );})}
       </div>
     </div>
@@ -1315,15 +1487,13 @@ function AltActivities({ mobile, onOpenActivity }) {
       <h2 style={{fontSize:"16px",fontWeight:700,color:"#ddd",marginBottom:"20px",fontFamily:"'Instrument Sans',sans-serif"}}>ACTIVITIES &amp; ALTERNATIVES</h2>
       <div style={{display:"flex",gap:"12px",flexWrap:"wrap",flexDirection:mobile?"column":"row"}}>
         {Object.entries(ALT_ACTIVITIES).map(([k, a]) => (
-          <div key={k} onClick={() => onOpenActivity && onOpenActivity(k)} style={{flex:"1 1 200px",backgroundColor:"#0c0c10",borderRadius:"14px",padding:"20px",border:`1px solid ${a.color || '#1a1a1f'}22`,cursor:"pointer",transition:"all 0.2s"}}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor=`${a.color||'#82e0aa'}44`;e.currentTarget.style.transform="translateY(-2px)";}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor=`${a.color||'#1a1a1f'}22`;e.currentTarget.style.transform="translateY(0)";}}>
+          <button key={k} onClick={() => onOpenActivity && onOpenActivity(k)} style={{flex:"1 1 200px",backgroundColor:"#0c0c10",borderRadius:"14px",padding:"20px",border:`1px solid ${a.color || '#1a1a1f'}22`,cursor:"pointer",transition:"all 0.2s",textAlign:"left"}}>
             <div style={{fontSize:"22px",marginBottom:"8px"}}>{a.icon}</div>
             <div style={{fontSize:"14px",fontWeight:600,color:a.color||"#82e0aa",marginBottom:"4px"}}>{a.name}</div>
             <div style={{fontSize:"11px",color:"#666",marginBottom:"8px"}}>{a.duration}</div>
             <div style={{fontSize:"12px",color:"#888",lineHeight:1.5}}>{a.detail}</div>
             <div style={{fontSize:"10px",color:`${a.color||'#82e0aa'}66`,marginTop:"10px"}}>Tap for details &rarr;</div>
-          </div>
+          </button>
         ))}
       </div>
     </div>
