@@ -884,8 +884,9 @@ function ExerciseDetailView({ exerciseName, sets, sectionColor, onBack, mobile }
 // EXERCISE SWAP BOTTOM SHEET (Phase 2)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ExerciseSwapSheet({ exerciseName, onSwap, onClose, mobile }) {
+function ExerciseSwapSheet({ exerciseName, currentName, onSwap, onRevert, onClose, mobile }) {
   const alts = EXERCISE_ALTERNATIVES[exerciseName] || [];
+  const isSwapped = currentName && currentName !== exerciseName;
   if (alts.length === 0) return null;
   return (
     <div style={{position:"fixed",bottom:0,left:0,right:0,top:0,zIndex:1100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
@@ -894,15 +895,24 @@ function ExerciseSwapSheet({ exerciseName, onSwap, onClose, mobile }) {
         <style>{`@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
         <div style={{width:"40px",height:"4px",backgroundColor:"#333",borderRadius:"2px",margin:"0 auto 16px"}} />
         <div style={{fontSize:"10px",letterSpacing:"2px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"4px"}}>SWAP EXERCISE</div>
-        <div style={{fontSize:"16px",fontWeight:600,color:"#fff",marginBottom:"16px"}}>{exerciseName}</div>
+        <div style={{fontSize:"16px",fontWeight:600,color:"#fff",marginBottom:"4px"}}>{exerciseName}</div>
+        {isSwapped && (
+          <div style={{fontSize:"11px",color:"#e6b800",marginBottom:"12px",fontFamily:"'JetBrains Mono',monospace"}}>Currently swapped to: {currentName}</div>
+        )}
+        {isSwapped && (
+          <button onClick={() => { onRevert(exerciseName); onClose(); }} style={{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",padding:"14px",backgroundColor:"#1a1518",border:"1px solid #e6b80033",borderRadius:"12px",cursor:"pointer",textAlign:"left",marginBottom:"10px",transition:"all 0.15s"}}>
+            <span style={{fontSize:"14px",fontWeight:600,color:"#e6b800"}}>Revert to original</span>
+            <span style={{fontSize:"10px",color:"#e6b800",fontFamily:"'JetBrains Mono',monospace"}}>UNDO</span>
+          </button>
+        )}
         <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
           {alts.map((alt,i) => (
-            <button key={i} onClick={() => onSwap(alt.name)} style={{display:"flex",flexDirection:"column",gap:"4px",padding:"14px",backgroundColor:"#0c0c10",border:"1px solid #1a1a1f",borderRadius:"12px",cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}
+            <button key={i} onClick={() => onSwap(alt.name)} style={{display:"flex",flexDirection:"column",gap:"4px",padding:"14px",backgroundColor:currentName===alt.name?"#00d4aa08":"#0c0c10",border:currentName===alt.name?"1px solid #00d4aa33":"1px solid #1a1a1f",borderRadius:"12px",cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}
               onMouseEnter={e => e.currentTarget.style.borderColor = "#00d4aa44"}
-              onMouseLeave={e => e.currentTarget.style.borderColor = "#1a1a1f"}>
+              onMouseLeave={e => e.currentTarget.style.borderColor = currentName===alt.name?"#00d4aa33":"#1a1a1f"}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span style={{fontSize:"14px",fontWeight:600,color:"#ddd"}}>{alt.name}</span>
-                <span style={{fontSize:"10px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace"}}>SELECT</span>
+                <span style={{fontSize:"10px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace"}}>{currentName===alt.name?"ACTIVE":"SELECT"}</span>
               </div>
               <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
                 <span style={{fontSize:"10px",color:"#48dbfb",backgroundColor:"#48dbfb15",padding:"2px 8px",borderRadius:"4px",fontFamily:"'JetBrains Mono',monospace"}}>{alt.equip}</span>
@@ -921,9 +931,8 @@ function ExerciseSwapSheet({ exerciseName, onSwap, onClose, mobile }) {
 // WORKOUT DETAIL (updated: X button fix + swap buttons)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function WorkoutDetail({ program, onClose, mobile, swaps, onSwapExercise }) {
+function WorkoutDetail({ program, onClose, mobile, swaps, onRequestSwap }) {
   const [sel, setSel] = useState(null);
-  const [swapTarget, setSwapTarget] = useState(null);
   const data = WORKOUT_PROGRAMS[program]; if (!data) return null;
   const sections = [{label:"WARMUP",items:data.warmup,color:"#f39c12"},{label:"MAIN WORK",items:data.main,color:"#00d4aa"},{label:"FINISHER + MOBILITY",items:data.finisher,color:"#48dbfb"}];
 
@@ -965,7 +974,7 @@ function WorkoutDetail({ program, onClose, mobile, swaps, onSwapExercise }) {
                         <div style={{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}}>
                           <span style={{fontSize:"12px",color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{item.sets}</span>
                           {hasAlts && (
-                            <button onClick={(e)=>{e.stopPropagation();setSwapTarget(item.exercise);}} style={{background:"#1a1a2e",border:"1px solid #333",borderRadius:"6px",padding:"4px 8px",cursor:"pointer",fontSize:"9px",color:"#888",fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.5px"}}>SWAP</button>
+                            <button onClick={(e)=>{e.stopPropagation();onRequestSwap(item.exercise);}} style={{background:"#1a1a2e",border:"1px solid #333",borderRadius:"6px",padding:"4px 8px",cursor:"pointer",fontSize:"9px",color:"#888",fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.5px"}}>SWAP</button>
                           )}
                         </div>
                       </div>
@@ -979,14 +988,6 @@ function WorkoutDetail({ program, onClose, mobile, swaps, onSwapExercise }) {
           </>
         )}
       </div>
-      {swapTarget && (
-        <ExerciseSwapSheet
-          exerciseName={swapTarget}
-          onSwap={(newName) => { onSwapExercise(swapTarget, newName); setSwapTarget(null); }}
-          onClose={() => setSwapTarget(null)}
-          mobile={mobile}
-        />
-      )}
     </div>
   );
 }
@@ -1165,35 +1166,42 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
     return act ? `${act.icon} ${act.name}` : "Active";
   };
 
+  const pmColor = pmType==='surf'?'#48dbfb':pmType==='softball'?'#c39bd3':'#82e0aa';
+  const getAmColor = () => { const a = ALT_ACTIVITIES[day.am?.activity]; return a?.color || '#e6b800'; };
+
   if (mobile) {
     return (
       <div style={{display:"flex",alignItems:"center",gap:"8px",padding:"10px 12px",backgroundColor:isToday?"#1a1a2e":day.isOverride?"#1a1518":"#0c0c10",borderRadius:"10px",border:isToday?"1px solid #00d4aa44":day.isOverride?"1px solid #e6b80033":"1px solid #1a1a1f",position:"relative",minHeight:"48px"}}>
         {isToday && <div style={{position:"absolute",left:"-1px",top:"50%",transform:"translateY(-50%)",width:"3px",height:"24px",borderRadius:"0 3px 3px 0",backgroundColor:"#00d4aa"}} />}
-        <div style={{width:"36px",textAlign:"center",flexShrink:0}} onClick={() => onEditDay && onEditDay(day)}>
+        <button onClick={() => onEditDay && onEditDay(day)} style={{width:"36px",textAlign:"center",flexShrink:0,background:"none",border:"none",padding:"4px 0",cursor:"pointer"}}>
           <div style={{fontSize:"10px",fontWeight:700,color:isWE?"#48dbfb":"#666",letterSpacing:"1px",fontFamily:"'JetBrains Mono',monospace"}}>{day.dayName.toUpperCase()}</div>
           <div style={{fontSize:"9px",color:"#444"}}>{ds}</div>
           {onEditDay && <div style={{fontSize:"7px",color:"#444",marginTop:"2px"}}>edit</div>}
-        </div>
+        </button>
         <div style={{flex:1,display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap"}}>
           {hasAM && day.am.type === "gym" && (
             <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
               {toggle && <CheckBtn checked={!!gymDone} onClick={() => toggle(day.date,'gym')} size={18} color="#00d4aa"/>}
-              <div onClick={() => onOpenWorkout(day.am.program)} style={{backgroundColor:"#00d4aa12",borderRadius:"6px",padding:"4px 10px",border:"1px solid #00d4aa22",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",opacity:gymDone?0.5:1}}>
+              <button onClick={() => onOpenWorkout(day.am.program)} style={{backgroundColor:"#00d4aa12",borderRadius:"6px",padding:"4px 10px",border:"1px solid #00d4aa22",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",opacity:gymDone?0.5:1}}>
                 <span style={{fontSize:"9px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace",fontWeight:600}}>GYM</span>
                 <span style={{fontSize:"11px",fontWeight:600,color:"#ccc",textDecoration:gymDone?"line-through":"none"}}>{WORKOUT_PROGRAMS[day.am.program]?.name.split("+")[0].trim()}</span>
                 <span style={{fontSize:"10px",color:"#00d4aa88"}}>&rarr;</span>
-              </div>
+              </button>
             </div>
           )}
           {hasAM && day.am.type !== "gym" && (
-            <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-              <span onClick={() => onOpenActivity && onOpenActivity(day.am.activity || day.am.type)} style={{fontSize:"11px",color:"#e6b80088",cursor:"pointer"}}>{ALT_ACTIVITIES[day.am.activity]?.icon} {ALT_ACTIVITIES[day.am.activity]?.name || "Activity"}</span>
-            </div>
+            <button onClick={() => onOpenActivity(day.am.activity || day.am.type)} style={{backgroundColor:`${getAmColor()}12`,borderRadius:"6px",padding:"4px 10px",border:`1px solid ${getAmColor()}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:"6px"}}>
+              <span style={{fontSize:"11px",fontWeight:600,color:"#ccc"}}>{ALT_ACTIVITIES[day.am?.activity]?.icon} {ALT_ACTIVITIES[day.am?.activity]?.name || "Activity"}</span>
+              <span style={{fontSize:"10px",color:`${getAmColor()}88`}}>&rarr;</span>
+            </button>
           )}
           {hasPM && (
             <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-              {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey)} size={18} color={pmType==='surf'?'#48dbfb':pmType==='softball'?'#c39bd3':'#82e0aa'}/>}
-              <span onClick={() => onOpenActivity && onOpenActivity(pmActivity)} style={{fontSize:"11px",color:pmDone?"#33333388":pmType==="surf"?"#48dbfb88":pmType==="softball"?"#c39bd388":"#82e0aa88",textDecoration:pmDone?"line-through":"none",cursor:"pointer"}}>{getPmLabel()}</span>
+              {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey)} size={18} color={pmColor}/>}
+              <button onClick={() => onOpenActivity(pmActivity)} style={{backgroundColor:`${pmColor}12`,borderRadius:"6px",padding:"4px 10px",border:`1px solid ${pmColor}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",opacity:pmDone?0.5:1}}>
+                <span style={{fontSize:"11px",fontWeight:600,color:pmDone?"#55555588":"#ccc",textDecoration:pmDone?"line-through":"none"}}>{getPmLabel()}</span>
+                <span style={{fontSize:"10px",color:`${pmColor}88`}}>&rarr;</span>
+              </button>
             </div>
           )}
         </div>
@@ -1212,25 +1220,25 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
       {hasAM && day.am.type === "gym" && (
         <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
           {toggle && <CheckBtn checked={!!gymDone} onClick={() => toggle(day.date,'gym')} size={18} color="#00d4aa"/>}
-          <div onClick={(e) => { e.stopPropagation(); onOpenWorkout(day.am.program); }} style={{flex:1,backgroundColor:"#00d4aa12",borderRadius:"8px",padding:"8px",cursor:"pointer",border:"1px solid #00d4aa22",opacity:gymDone?0.5:1}}>
+          <button onClick={(e) => { e.stopPropagation(); onOpenWorkout(day.am.program); }} style={{flex:1,backgroundColor:"#00d4aa12",borderRadius:"8px",padding:"8px",cursor:"pointer",border:"1px solid #00d4aa22",opacity:gymDone?0.5:1,textAlign:"left"}}>
             <div style={{fontSize:"9px",color:"#00d4aa",letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px"}}>AM GYM</div>
             <div style={{fontSize:"12px",fontWeight:600,color:"#ccc",textDecoration:gymDone?"line-through":"none"}}>{WORKOUT_PROGRAMS[day.am.program]?.name.split("+")[0].trim()}</div>
-          </div>
+          </button>
         </div>
       )}
       {hasAM && day.am.type !== "gym" && (
-        <div onClick={(e) => { e.stopPropagation(); onOpenActivity && onOpenActivity(day.am.activity || day.am.type); }} style={{backgroundColor:"#e6b80008",borderRadius:"8px",padding:"8px",border:"1px solid #e6b80015",cursor:"pointer"}}>
-          <div style={{fontSize:"9px",color:"#e6b800",letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px"}}>AM</div>
-          <div style={{fontSize:"12px",fontWeight:500,color:"#aaa"}}>{ALT_ACTIVITIES[day.am.activity]?.icon} {ALT_ACTIVITIES[day.am.activity]?.name}</div>
-        </div>
+        <button onClick={(e) => { e.stopPropagation(); onOpenActivity(day.am.activity || day.am.type); }} style={{backgroundColor:`${getAmColor()}08`,borderRadius:"8px",padding:"8px",border:`1px solid ${getAmColor()}15`,cursor:"pointer",textAlign:"left",width:"100%"}}>
+          <div style={{fontSize:"9px",color:getAmColor(),letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px"}}>AM</div>
+          <div style={{fontSize:"12px",fontWeight:500,color:"#aaa"}}>{ALT_ACTIVITIES[day.am?.activity]?.icon} {ALT_ACTIVITIES[day.am?.activity]?.name}</div>
+        </button>
       )}
       {hasPM && (
         <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-          {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey)} size={18} color={pmType==='surf'?'#48dbfb':pmType==='softball'?'#c39bd3':'#82e0aa'}/>}
-          <div onClick={(e) => { e.stopPropagation(); onOpenActivity && onOpenActivity(pmActivity); }} style={{flex:1,backgroundColor:pmType==="surf"?"#48dbfb0a":pmType==="softball"?"#c39bd30a":"#82e0aa0a",borderRadius:"8px",padding:"8px",border:`1px solid ${pmType==="surf"?"#48dbfb15":pmType==="softball"?"#c39bd315":"#82e0aa15"}`,opacity:pmDone?0.5:1,cursor:"pointer"}}>
-            <div style={{fontSize:"9px",letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px",color:pmType==="surf"?"#48dbfb":pmType==="softball"?"#c39bd3":"#82e0aa"}}>{isWE ? "" : "PM "}{pmType==="surf"?"SURF":pmType==="softball"?"SOFTBALL":"ACTIVE"}</div>
+          {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey)} size={18} color={pmColor}/>}
+          <button onClick={(e) => { e.stopPropagation(); onOpenActivity(pmActivity); }} style={{flex:1,backgroundColor:`${pmColor}0a`,borderRadius:"8px",padding:"8px",border:`1px solid ${pmColor}15`,opacity:pmDone?0.5:1,cursor:"pointer",textAlign:"left"}}>
+            <div style={{fontSize:"9px",letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px",color:pmColor}}>{isWE ? "" : "PM "}{pmType==="surf"?"SURF":pmType==="softball"?"SOFTBALL":"ACTIVE"}</div>
             <div style={{fontSize:"12px",fontWeight:500,color:"#aaa",textDecoration:pmDone?"line-through":"none"}}>{getPmLabel()}</div>
-          </div>
+          </button>
         </div>
       )}
       {!hasAM && !hasPM && <div style={{fontSize:"10px",color:"#333"}}>Rest</div>}
@@ -1563,6 +1571,7 @@ export default function SurfTrainingSchedule() {
   const [openWorkout, setOpenWorkout] = useState(null);
   const [editDay, setEditDay] = useState(null);
   const [openActivity, setOpenActivity] = useState(null);
+  const [swapTarget, setSwapTarget] = useState(null);
   const { progress, toggle, isComplete, reset } = useProgress();
   const [overrides, setOverrides] = useLocalState('surf-overrides', {});
   const [swaps, setSwaps] = useLocalState('surf-swaps', {});
@@ -1574,15 +1583,14 @@ export default function SurfTrainingSchedule() {
   // Generate schedule
   const schedule = generateVisibleWeeks(startDate, overrides);
 
-  // Today's exercise swaps (keyed by today's date)
-  const todayKey = dateKey(new Date());
-  const todaySwaps = swaps[todayKey] || {};
-
+  // Exercise swaps — permanent replacements (not per-day)
   const handleSwapExercise = (original, replacement) => {
-    setSwaps(prev => ({
-      ...prev,
-      [todayKey]: { ...(prev[todayKey] || {}), [original]: replacement }
-    }));
+    if (!replacement) {
+      // Revert: remove the swap entry
+      setSwaps(prev => { const next = { ...prev }; delete next[original]; return next; });
+    } else {
+      setSwaps(prev => ({ ...prev, [original]: replacement }));
+    }
   };
 
   const handleEditDay = (am, pm) => {
@@ -1609,9 +1617,19 @@ export default function SurfTrainingSchedule() {
         body{background:#08080c}
       `}</style>
 
-      {openWorkout && <WorkoutDetail program={openWorkout} onClose={() => setOpenWorkout(null)} mobile={mobile} swaps={todaySwaps} onSwapExercise={handleSwapExercise} />}
+      {openWorkout && <WorkoutDetail program={openWorkout} onClose={() => setOpenWorkout(null)} mobile={mobile} swaps={swaps} onRequestSwap={setSwapTarget} />}
       {editDay && <DayEditModal day={editDay} onSave={handleEditDay} onClose={() => setEditDay(null)} mobile={mobile} />}
       {openActivity && <ActivityDetailModal activityKey={openActivity} onClose={() => setOpenActivity(null)} mobile={mobile} />}
+      {swapTarget && (
+        <ExerciseSwapSheet
+          exerciseName={swapTarget}
+          currentName={swaps[swapTarget] || swapTarget}
+          onSwap={(newName) => { handleSwapExercise(swapTarget, newName); setSwapTarget(null); }}
+          onRevert={(original) => { handleSwapExercise(original, null); setSwapTarget(null); }}
+          onClose={() => setSwapTarget(null)}
+          mobile={mobile}
+        />
+      )}
 
       <div style={{padding:mobile?"28px 16px 20px":"48px 32px 32px",maxWidth:"1100px",margin:"0 auto",borderBottom:"1px solid #111"}}>
         <div style={{fontSize:mobile?"9px":"10px",letterSpacing:mobile?"3px":"4px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace",marginBottom:"8px"}}>SURF PERFORMANCE PROGRAM</div>
