@@ -688,6 +688,100 @@ const EX_DATA = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TIME ESTIMATION ENGINE (Phase 3 — Time Budget)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function estimateExerciseMinutes(setsStr, section) {
+  if (!setsStr) return section === 'warmup' ? 2.5 : section === 'finisher' ? 3 : 5;
+  const s = setsStr.replace(/\u00d7/g, 'x');
+
+  const bilateral = /each|per side|per leg|each direction|each position/i.test(s);
+  const bMult = bilateral ? 1.8 : 1; // bilateral isn't exactly 2x — transitions between sides are fast
+
+  // Timed sets: "2x30sec", "2x45sec each"
+  const timedMatch = s.match(/(\d+)\s*x\s*(\d+)\s*sec/i);
+  if (timedMatch) {
+    const sets = parseInt(timedMatch[1]);
+    const sec = parseInt(timedMatch[2]) * bMult;
+    const rest = section === 'finisher' ? 15 : 30;
+    return (sets * sec + Math.max(0, sets - 1) * rest + 20) / 60;
+  }
+
+  // Minutes: "1 min each", "1 min"
+  const minMatch = s.match(/(\d+)\s*min/i);
+  if (minMatch) {
+    return parseInt(minMatch[1]) * bMult + 0.5;
+  }
+
+  // Rep or distance based: "4x10", "3x8 each", "3x40m"
+  const repMatch = s.match(/(\d+)\s*x\s*(\d+)/i);
+  if (repMatch) {
+    const sets = parseInt(repMatch[1]);
+    const val = parseInt(repMatch[2]);
+
+    // Distance check: has trailing 'm' but not 'min'
+    if (/\d+m\b/.test(s) && !/min/i.test(s)) {
+      const secPerSet = 30 * bMult;
+      return (sets * secPerSet + Math.max(0, sets - 1) * 60 + 20) / 60;
+    }
+
+    // Standard rep-based
+    const secPerRep = section === 'warmup' ? 3 : 3.5;
+    const secPerSet = val * secPerRep * bMult;
+    const rest = section === 'warmup' ? 30 : section === 'finisher' ? 45 : 75;
+    return (sets * secPerSet + Math.max(0, sets - 1) * rest + 20) / 60;
+  }
+
+  // Fallback
+  return section === 'warmup' ? 2.5 : section === 'finisher' ? 3 : 5;
+}
+
+function computeTimeBudget(programKey, targetMinutes) {
+  const data = WORKOUT_PROGRAMS[programKey];
+  if (!data) return null;
+
+  const buildItems = (items, section) => items.map(item => ({
+    ...item, time: estimateExerciseMinutes(item.sets, section), included: true
+  }));
+
+  const warmup = buildItems(data.warmup, 'warmup');
+  const main = buildItems(data.main, 'main');
+  const finisher = buildItems(data.finisher, 'finisher');
+
+  const fullTime = [...warmup, ...main, ...finisher].reduce((s, e) => s + e.time, 0);
+
+  if (!targetMinutes || fullTime <= targetMinutes) {
+    return { warmup, main, finisher, totalTime: fullTime, trimmedCount: 0 };
+  }
+
+  let totalTime = fullTime;
+  let trimmed = 0;
+
+  // Phase 1: Drop finisher items (last → first)
+  for (let i = finisher.length - 1; i >= 0 && totalTime > targetMinutes; i--) {
+    finisher[i].included = false;
+    totalTime -= finisher[i].time;
+    trimmed++;
+  }
+
+  // Phase 2: Drop main items from bottom (keep minimum 2 compound lifts)
+  for (let i = main.length - 1; i >= 2 && totalTime > targetMinutes; i--) {
+    main[i].included = false;
+    totalTime -= main[i].time;
+    trimmed++;
+  }
+
+  // Phase 3: Trim warmup (keep first exercise — the hip/joint opener)
+  for (let i = warmup.length - 1; i >= 1 && totalTime > targetMinutes; i--) {
+    warmup[i].included = false;
+    totalTime -= warmup[i].time;
+    trimmed++;
+  }
+
+  return { warmup, main, finisher, totalTime, trimmedCount: trimmed };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // WORKOUT DATA
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1102,24 +1196,104 @@ function ExerciseSwapSheet({ exerciseName, currentName, onSwap, onRevert, onClos
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WORKOUT DETAIL (updated: X button fix + swap buttons)
+// WORKOUT DETAIL (Phase 3: Time Budget + swap buttons + safe-area X fix)
 // ═══════════════════════════════════════════════════════════════════════════
+
+const TIME_PRESETS = [
+  { label: "20", minutes: 20, desc: "Quick hit" },
+  { label: "30", minutes: 30, desc: "Essentials" },
+  { label: "45", minutes: 45, desc: "Near-full" },
+  { label: "Full", minutes: null, desc: "Complete" },
+];
 
 function WorkoutDetail({ program, onClose, mobile, swaps, onRequestSwap }) {
   const [sel, setSel] = useState(null);
+  const [timeBudget, setTimeBudget] = useState(null); // null = full, or number of minutes
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const data = WORKOUT_PROGRAMS[program]; if (!data) return null;
-  const sections = [{label:"WARMUP",items:data.warmup,color:"#f39c12"},{label:"MAIN WORK",items:data.main,color:"#00d4aa"},{label:"FINISHER + MOBILITY",items:data.finisher,color:"#48dbfb"}];
 
   const getDisplayName = (name) => (swaps && swaps[name]) || name;
-  const isSwapped = (name) => swaps && swaps[name] && swaps[name] !== name;
+  const isSwappedEx = (name) => swaps && swaps[name] && swaps[name] !== name;
+
+  // Compute budget (always compute full to get totalTime)
+  const fullBudget = computeTimeBudget(program, null);
+  const activeBudget = timeBudget ? computeTimeBudget(program, timeBudget) : fullBudget;
+  const isTrimmed = timeBudget !== null && activeBudget && activeBudget.trimmedCount > 0;
+
+  const sections = activeBudget ? [
+    { label: "WARMUP", items: activeBudget.warmup, color: "#f39c12" },
+    { label: "MAIN WORK", items: activeBudget.main, color: "#00d4aa" },
+    { label: "FINISHER + MOBILITY", items: activeBudget.finisher, color: "#48dbfb" },
+  ] : [];
 
   return (
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,backgroundColor:"rgba(0,0,0,0.85)",zIndex:1000,display:"flex",alignItems:mobile?"flex-start":"center",justifyContent:"center",padding:mobile?0:"20px",backdropFilter:"blur(8px)"}} onClick={onClose}>
       <div style={{backgroundColor:"#111116",borderRadius:mobile?0:"20px",maxWidth:mobile?"100%":"680px",width:"100%",maxHeight:mobile?"100vh":"85vh",height:mobile?"100vh":"auto",overflowY:"auto",padding:mobile?"0 16px 36px":"36px",color:"#e8e8ec",border:mobile?"none":"1px solid rgba(0,212,170,0.2)",position:"relative",WebkitOverflowScrolling:"touch"}} onClick={e=>e.stopPropagation()}>
-        {/* FIXED: Safe-area-aware close button header */}
-        <div style={{position:"sticky",top:0,zIndex:10,backgroundColor:"#111116",paddingTop:mobile?"max(12px, env(safe-area-inset-top, 12px))":"16px",paddingBottom:"8px",display:"flex",justifyContent:"flex-end",marginBottom:"4px"}}>
+        {/* Safe-area-aware header: Time button + close */}
+        <div style={{position:"sticky",top:0,zIndex:10,backgroundColor:"#111116",paddingTop:mobile?"max(12px, env(safe-area-inset-top, 12px))":"16px",paddingBottom:"8px",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:"8px",marginBottom:"4px"}}>
+          <button onClick={() => setShowTimePicker(p => !p)} style={{
+            background: timeBudget !== null ? "#00d4aa12" : "#1a1a22",
+            border: timeBudget !== null ? "1px solid #00d4aa44" : "1px solid #222",
+            borderRadius: "18px",
+            padding: "6px 14px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+            height: "36px",
+            transition: "all 0.15s",
+          }}>
+            <span style={{fontSize:"12px"}}>⏱</span>
+            <span style={{fontSize:"11px",fontWeight:600,color: timeBudget !== null ? "#00d4aa" : "#888",fontFamily:"'JetBrains Mono',monospace"}}>
+              {timeBudget !== null ? `${timeBudget}m` : "Time"}
+            </span>
+          </button>
           <button onClick={onClose} style={{background:"#222",border:"none",color:"#888",fontSize:"16px",cursor:"pointer",width:"36px",height:"36px",borderRadius:"18px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>&times;</button>
         </div>
+        {/* Collapsible time budget picker */}
+        {showTimePicker && !sel && (
+          <div style={{margin:"0 0 16px",padding:"14px",backgroundColor:"#0a0a0f",borderRadius:"12px",border:"1px solid #1a1a22"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}}>
+              <div style={{fontSize:"9px",letterSpacing:"2px",color:"#666",fontFamily:"'JetBrains Mono',monospace"}}>TIME BUDGET</div>
+              {activeBudget && (
+                <div style={{fontSize:"11px",color:isTrimmed?"#e6b800":"#555",fontFamily:"'JetBrains Mono',monospace"}}>
+                  ~{Math.round(activeBudget.totalTime)} min
+                  {isTrimmed && <span style={{color:"#888",marginLeft:"6px"}}>&middot; {activeBudget.trimmedCount} skipped</span>}
+                </div>
+              )}
+            </div>
+            <div style={{display:"flex",gap:"6px"}}>
+              {TIME_PRESETS.map(preset => {
+                const isActive = preset.minutes === timeBudget;
+                return (
+                  <button
+                    key={preset.label}
+                    onClick={() => { setTimeBudget(preset.minutes); setShowTimePicker(false); }}
+                    style={{
+                      flex: 1,
+                      padding: mobile ? "10px 4px" : "8px 4px",
+                      borderRadius: "8px",
+                      border: isActive ? "1px solid #00d4aa55" : "1px solid #222",
+                      backgroundColor: isActive ? "#00d4aa12" : "#111116",
+                      cursor: "pointer",
+                      textAlign: "center",
+                      transition: "all 0.15s",
+                      minHeight: mobile ? "44px" : "auto",
+                    }}
+                  >
+                    <div style={{fontSize:mobile?"14px":"13px",fontWeight:600,color:isActive?"#00d4aa":"#888",fontFamily:"'JetBrains Mono',monospace"}}>{preset.label === "Full" ? "Full" : preset.label}</div>
+                    <div style={{fontSize:"8px",color:isActive?"#00d4aa88":"#444",marginTop:"2px",fontFamily:"'JetBrains Mono',monospace"}}>{preset.label === "Full" ? `~${Math.round(fullBudget?.totalTime || 50)}m` : `${preset.label}m`}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {isTrimmed && (
+              <div style={{marginTop:"10px",fontSize:"11px",color:"#888",lineHeight:1.5}}>
+                <span style={{color:"#e6b800"}}>Short session:</span> Warmup shortened, top compound lifts kept, finisher trimmed. Greyed items can still be done if time allows.
+              </div>
+            )}
+          </div>
+        )}
         {sel ? (
           <ExerciseDetailView exerciseName={getDisplayName(sel.exercise)} sets={sel.sets} sectionColor={sel.color} onBack={()=>setSel(null)} mobile={mobile}/>
         ) : (
@@ -1127,38 +1301,73 @@ function WorkoutDetail({ program, onClose, mobile, swaps, onRequestSwap }) {
             <div style={{fontSize:"11px",letterSpacing:"3px",color:"#00d4aa",marginBottom:"6px",fontFamily:"'JetBrains Mono',monospace"}}>WORKOUT {program}</div>
             <h2 style={{fontSize:mobile?"20px":"24px",fontWeight:700,marginBottom:"8px",fontFamily:"'Instrument Sans',sans-serif",color:"#fff"}}>{data.name}</h2>
             <p style={{fontSize:"13px",color:"#999",marginBottom:"6px",lineHeight:1.5}}>{data.focus}</p>
-            <p style={{fontSize:"13px",color:"#777",marginBottom:"20px",lineHeight:1.5,fontStyle:"italic"}}>{data.why}</p>
-            <p style={{fontSize:"11px",color:"#555",marginBottom:"24px"}}>Sources: {data.sources}</p>
-            {sections.map(s => (
-              <div key={s.label} style={{marginBottom:"24px"}}>
-                <div style={{fontSize:"10px",letterSpacing:"2.5px",color:s.color,marginBottom:"12px",fontFamily:"'JetBrains Mono',monospace",borderBottom:`1px solid ${s.color}33`,paddingBottom:"6px"}}>{s.label}</div>
-                {s.items.map((item, i) => {
-                  const displayName = getDisplayName(item.exercise);
-                  const swapped = isSwapped(item.exercise);
-                  const has = !!EX_DATA[displayName];
-                  const hasAlts = !!EXERCISE_ALTERNATIVES[item.exercise];
-                  return (
-                    <div key={i} style={{marginBottom:mobile?"10px":"14px",paddingLeft:"12px",borderLeft:`2px solid ${s.color}44`,borderRadius:"0 8px 8px 0",padding:mobile?"8px 10px":"10px 12px",backgroundColor:"transparent",minHeight:mobile?"44px":"auto",display:"flex",flexDirection:"column",justifyContent:"center"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"3px",gap:"8px"}}>
-                        <button style={{flex:1,cursor:has?"pointer":"default",background:"none",border:"none",padding:0,textAlign:"left"}} onClick={()=>has&&setSel({...item,exercise:item.exercise,color:s.color})}>
-                          <span style={{fontSize:mobile?"13px":"14px",fontWeight:600,color:swapped?"#e6b800":"#ddd"}}>{displayName}</span>
-                          {swapped && <span style={{fontSize:"9px",color:"#888",marginLeft:"6px"}}>(swapped)</span>}
-                          {has && <span style={{fontSize:"10px",color:`${s.color}88`,marginLeft:"8px"}}>&rarr;</span>}
-                        </button>
-                        <div style={{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}}>
-                          <span style={{fontSize:"12px",color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{item.sets}</span>
-                          {hasAlts && (
-                            <button onClick={(e)=>{e.stopPropagation();onRequestSwap(item.exercise);}} style={{background:"#1a1a2e",border:"1px solid #333",borderRadius:"6px",padding:"4px 8px",cursor:"pointer",fontSize:"9px",color:"#888",fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.5px"}}>SWAP</button>
-                          )}
+            <p style={{fontSize:"13px",color:"#777",marginBottom:"4px",lineHeight:1.5,fontStyle:"italic"}}>{data.why}</p>
+            <p style={{fontSize:"11px",color:"#555",marginBottom:"20px"}}>Sources: {data.sources}</p>
+
+            {/* ── EXERCISE SECTIONS ─────────────────────────── */}
+            {sections.map(s => {
+              const hasAnyIncluded = s.items.some(item => item.included);
+              const allExcluded = !hasAnyIncluded;
+              return (
+                <div key={s.label} style={{marginBottom:"24px",opacity:allExcluded?0.4:1,transition:"opacity 0.2s"}}>
+                  <div style={{fontSize:"10px",letterSpacing:"2.5px",color:s.color,marginBottom:"12px",fontFamily:"'JetBrains Mono',monospace",borderBottom:`1px solid ${s.color}33`,paddingBottom:"6px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span>{s.label}</span>
+                    {allExcluded && <span style={{fontSize:"8px",letterSpacing:"1px",color:"#666",fontStyle:"normal"}}>SKIPPED</span>}
+                  </div>
+                  {s.items.map((item, i) => {
+                    const included = item.included !== false;
+                    const displayName = getDisplayName(item.exercise);
+                    const swapped = isSwappedEx(item.exercise);
+                    const has = !!EX_DATA[displayName];
+                    const hasAlts = !!EXERCISE_ALTERNATIVES[item.exercise];
+                    const timeStr = item.time ? `${Math.round(item.time)}m` : "";
+                    return (
+                      <div key={i} style={{
+                        marginBottom:mobile?"10px":"14px",
+                        paddingLeft:"12px",
+                        borderLeft:`2px solid ${included ? s.color + "44" : "#1a1a1f"}`,
+                        borderRadius:"0 8px 8px 0",
+                        padding:mobile?"8px 10px":"10px 12px",
+                        backgroundColor: included ? "transparent" : "#0a0a0f",
+                        minHeight:mobile?"44px":"auto",
+                        display:"flex",
+                        flexDirection:"column",
+                        justifyContent:"center",
+                        opacity: included ? 1 : 0.35,
+                        transition: "all 0.2s",
+                      }}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"3px",gap:"8px"}}>
+                          <button style={{flex:1,cursor:(has && included)?"pointer":"default",background:"none",border:"none",padding:0,textAlign:"left"}} onClick={()=>(has && included)&&setSel({...item,exercise:item.exercise,color:s.color})}>
+                            <span style={{
+                              fontSize:mobile?"13px":"14px",fontWeight:600,
+                              color: !included ? "#555" : swapped ? "#e6b800" : "#ddd",
+                              textDecoration: included ? "none" : "line-through",
+                            }}>{displayName}</span>
+                            {swapped && included && <span style={{fontSize:"9px",color:"#888",marginLeft:"6px"}}>(swapped)</span>}
+                            {!included && <span style={{fontSize:"9px",color:"#555",marginLeft:"6px"}}>skipped</span>}
+                            {has && included && <span style={{fontSize:"10px",color:`${s.color}88`,marginLeft:"8px"}}>&rarr;</span>}
+                          </button>
+                          <div style={{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}}>
+                            {isTrimmed && timeStr && <span style={{fontSize:"9px",color:"#444",fontFamily:"'JetBrains Mono',monospace"}}>{timeStr}</span>}
+                            <span style={{fontSize:"12px",color: included ? s.color : "#444",fontFamily:"'JetBrains Mono',monospace"}}>{item.sets}</span>
+                            {hasAlts && included && (
+                              <button onClick={(e)=>{e.stopPropagation();onRequestSwap(item.exercise);}} style={{background:"#1a1a2e",border:"1px solid #333",borderRadius:"6px",padding:"4px 8px",cursor:"pointer",fontSize:"9px",color:"#888",fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.5px"}}>SWAP</button>
+                            )}
+                          </div>
                         </div>
+                        {included && <p style={{fontSize:"12px",color:"#888",lineHeight:1.5,margin:0}}>{item.notes}</p>}
                       </div>
-                      <p style={{fontSize:"12px",color:"#888",lineHeight:1.5,margin:0}}>{item.notes}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-            <div style={{fontSize:"11px",color:"#555",marginTop:"16px",paddingTop:"16px",borderTop:"1px solid #222"}}>Target: 45-55 min. Tap any exercise for guide. Tap SWAP for alternatives.</div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            <div style={{fontSize:"11px",color:"#555",marginTop:"16px",paddingTop:"16px",borderTop:"1px solid #222"}}>
+              {isTrimmed
+                ? `Showing ${sections.flatMap(s=>s.items).filter(i=>i.included).length} of ${sections.flatMap(s=>s.items).length} exercises. Tap any exercise for guide.`
+                : "Target: 45-55 min. Tap any exercise for guide. Tap SWAP for alternatives."
+              }
+            </div>
           </>
         )}
       </div>
