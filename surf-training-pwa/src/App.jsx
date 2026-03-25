@@ -958,6 +958,45 @@ const ACTIVITY_DETAILS = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SURF SPOTS & BOARDS (Phase 4)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SURF_SPOTS = [
+  "Del Mar Beach Break",
+  "15th Street",
+  "Torrey Pines",
+  "Cardiff Reef",
+  "Swami's",
+  "Pipes",
+  "Blacks",
+  "Del Mar Rivermouth",
+  "Seaside",
+  "Tabletops",
+  "Scripps",
+  "LJ Shores",
+];
+
+const BOARDS = [
+  { name: "Big Bobby 5'9", type: "Groveler", liters: "33.7L" },
+  { name: "Seawolf 5'11", type: "HP Shortboard", liters: "~31L" },
+  { name: "Bobbyquad 5'7", type: "Groveler", liters: "32.3L" },
+  { name: "OG Flyer (double) 5'10", type: "Beater", liters: "29.8L" },
+  { name: "OG Flyer (single) 5'10", type: "Everyday Shortboard", liters: "29.8L" },
+  { name: "Disorder 5'8", type: "Asym", liters: "29.4L" },
+  { name: "Happy Traveler 6'10", type: "Step-Up", liters: "39.2L" },
+  { name: "Jive 7'0", type: "Mid-length", liters: "" },
+  { name: "Slasher Low Pro 9'9", type: "Log", liters: "78.4L" },
+];
+
+const STOKE_LEVELS = [
+  { value: 1, label: "Meh", color: "#555568" },
+  { value: 2, label: "OK", color: "#e6b800" },
+  { value: 3, label: "Fun", color: "#82e0aa" },
+  { value: 4, label: "Firing", color: "#48dbfb" },
+  { value: 5, label: "Epic", color: "#00d4aa" },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SCHEDULE ENGINE (infinite rolling mesocycles)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1076,6 +1115,43 @@ function useProgress() {
   }, [progress]);
   const reset = useCallback(() => setProgress({}), [setProgress]);
   return { progress, toggle, isComplete, reset };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTIVITY LOG (Phase 4 — session details beyond checkboxes)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function useActivityLog() {
+  const [logs, setLogs] = useLocalState('surf-activity-log', {});
+
+  const saveLog = useCallback((date, activityKey, logData) => {
+    const dk = dateKey(date);
+    setLogs(prev => ({
+      ...prev,
+      [dk]: { ...(prev[dk] || {}), [activityKey]: { ...logData, loggedAt: new Date().toISOString() } }
+    }));
+  }, [setLogs]);
+
+  const removeLog = useCallback((date, activityKey) => {
+    const dk = dateKey(date);
+    setLogs(prev => {
+      const next = { ...prev };
+      if (next[dk]) {
+        const dayLogs = { ...next[dk] };
+        delete dayLogs[activityKey];
+        if (Object.keys(dayLogs).length === 0) delete next[dk];
+        else next[dk] = dayLogs;
+      }
+      return next;
+    });
+  }, [setLogs]);
+
+  const getLog = useCallback((date, activityKey) => {
+    const dk = dateKey(date);
+    return logs[dk]?.[activityKey] || null;
+  }, [logs]);
+
+  return { logs, saveLog, removeLog, getLog };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1452,6 +1528,239 @@ const ACTIVITY_OPTIONS = [
   { label: "Rest (none)", value: null, color: "#555" },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SESSION LOG SHEET (Phase 4 — auto-opens on check)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose, mobile }) {
+  const isSurf = activityKey === 'surf';
+  const isGym = activityKey === 'gym';
+  const ds = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+  // Surf fields
+  const [spot, setSpot] = useState(SURF_SPOTS[0]);
+  const [board, setBoard] = useState(BOARDS[0].name);
+  const [stoke, setStoke] = useState(3);
+  const [showSpotPicker, setShowSpotPicker] = useState(false);
+  const [showBoardPicker, setShowBoardPicker] = useState(false);
+
+  // Shared fields
+  const durationPresets = isSurf
+    ? [{ label: "45m", min: 45 }, { label: "1h", min: 60 }, { label: "1.5h", min: 90 }, { label: "2h", min: 120 }, { label: "2.5h", min: 150 }]
+    : isGym
+    ? [{ label: "30m", min: 30 }, { label: "45m", min: 45 }, { label: "60m", min: 60 }, { label: "75m", min: 75 }, { label: "90m", min: 90 }]
+    : [{ label: "20m", min: 20 }, { label: "30m", min: 30 }, { label: "45m", min: 45 }, { label: "60m", min: 60 }, { label: "90m", min: 90 }];
+  const [duration, setDuration] = useState(isSurf ? 90 : isGym ? 60 : 45);
+  const [notes, setNotes] = useState("");
+
+  const handleSubmit = () => {
+    const logData = { duration, notes };
+    if (isSurf) {
+      logData.spot = spot;
+      logData.board = board;
+      logData.stoke = stoke;
+    }
+    if (isGym && context?.program) {
+      logData.program = context.program;
+    }
+    if (context?.activity) {
+      logData.activity = context.activity;
+    }
+    onSubmit(logData);
+  };
+
+  const title = isSurf ? "Log Surf Session" : isGym ? "Log Gym Session" : activityKey === 'softball' ? "Log Softball" : "Log Activity";
+  const accentColor = isSurf ? "#48dbfb" : isGym ? "#00d4aa" : activityKey === 'softball' ? "#c39bd3" : "#82e0aa";
+
+  // Picker sub-component
+  const PickerList = ({ items, selected, onSelect, onDone, renderItem }) => (
+    <div style={{position:"fixed",inset:0,zIndex:10002,display:"flex",alignItems:"flex-end",justifyContent:"center",backgroundColor:"rgba(0,0,0,0.6)"}}>
+      <div style={{width:"100%",maxWidth:"480px",maxHeight:"70vh",backgroundColor:"#14141c",borderRadius:"20px 20px 0 0",padding:"16px 16px 32px",overflowY:"auto",paddingBottom:"env(safe-area-inset-bottom,16px)"}}>
+        <div style={{width:"36px",height:"4px",borderRadius:"2px",backgroundColor:"#333",margin:"0 auto 16px"}} />
+        {items.map((item, i) => {
+          const val = typeof item === 'string' ? item : item.name;
+          const isSelected = val === selected;
+          return (
+            <button key={i} onClick={() => { onSelect(val); onDone(); }} style={{
+              display:"block",width:"100%",textAlign:"left",padding:"14px 16px",marginBottom:"2px",
+              backgroundColor:isSelected ? `${accentColor}15` : "transparent",
+              border:isSelected ? `1px solid ${accentColor}33` : "1px solid transparent",
+              borderRadius:"10px",cursor:"pointer",color:isSelected ? accentColor : "#ccc",
+              fontSize:"14px",fontFamily:"'Instrument Sans',sans-serif",
+            }}>
+              {renderItem ? renderItem(item, isSelected) : val}
+              {isSelected && <span style={{float:"right",color:accentColor}}>✓</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:10001,display:"flex",alignItems:"flex-end",justifyContent:"center",backgroundColor:"rgba(0,0,0,0.55)"}} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width:"100%",maxWidth:"480px",backgroundColor:"#14141c",borderRadius:"20px 20px 0 0",
+        padding:mobile?"20px 16px 28px":"24px 20px 32px",
+        maxHeight:"85vh",overflowY:"auto",
+        paddingBottom:`calc(${mobile?"28px":"32px"} + env(safe-area-inset-bottom, 0px))`,
+      }}>
+        <div style={{width:"36px",height:"4px",borderRadius:"2px",backgroundColor:"#333",margin:"0 auto 16px"}} />
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"20px"}}>
+          <div>
+            <div style={{fontSize:"16px",fontWeight:700,color:"#fff"}}>{title}</div>
+            <div style={{fontSize:"11px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginTop:"2px"}}>{ds}{isGym && context?.program ? ` · Workout ${context.program}` : ""}</div>
+          </div>
+          <button onClick={onClose} style={{background:"#222",border:"none",color:"#888",fontSize:"16px",cursor:"pointer",width:"36px",height:"36px",borderRadius:"18px",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+
+        {/* Surf-specific: Spot */}
+        {isSurf && (
+          <div style={{marginBottom:"16px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>SPOT</div>
+            <button onClick={() => setShowSpotPicker(true)} style={{
+              width:"100%",textAlign:"left",padding:"12px 14px",backgroundColor:"#0c0c10",
+              border:"1px solid #1a1a1f",borderRadius:"10px",color:"#fff",fontSize:"14px",
+              cursor:"pointer",fontFamily:"'Instrument Sans',sans-serif",
+              display:"flex",justifyContent:"space-between",alignItems:"center",
+            }}>
+              <span>{spot}</span>
+              <span style={{color:"#555",fontSize:"12px"}}>▾</span>
+            </button>
+          </div>
+        )}
+
+        {/* Surf-specific: Board */}
+        {isSurf && (
+          <div style={{marginBottom:"16px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>BOARD</div>
+            <button onClick={() => setShowBoardPicker(true)} style={{
+              width:"100%",textAlign:"left",padding:"12px 14px",backgroundColor:"#0c0c10",
+              border:"1px solid #1a1a1f",borderRadius:"10px",color:"#fff",fontSize:"14px",
+              cursor:"pointer",fontFamily:"'Instrument Sans',sans-serif",
+              display:"flex",justifyContent:"space-between",alignItems:"center",
+            }}>
+              <span>{board}</span>
+              <span style={{color:"#555",fontSize:"12px"}}>▾</span>
+            </button>
+          </div>
+        )}
+
+        {/* Surf-specific: Stoke rating */}
+        {isSurf && (
+          <div style={{marginBottom:"20px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"8px"}}>STOKE LEVEL</div>
+            <div style={{display:"flex",gap:"3px",borderRadius:"10px",overflow:"hidden"}}>
+              {STOKE_LEVELS.map(s => {
+                const isActive = s.value <= stoke;
+                const isExact = s.value === stoke;
+                return (
+                  <button key={s.value} onClick={() => setStoke(s.value)} style={{
+                    flex:1,padding:"12px 4px 8px",cursor:"pointer",
+                    backgroundColor: isActive ? `${s.color}22` : "#0c0c10",
+                    border:"none",
+                    borderBottom: isActive ? `3px solid ${s.color}` : "3px solid #1a1a1f",
+                    display:"flex",flexDirection:"column",alignItems:"center",gap:"4px",
+                    transition:"all 0.15s",
+                  }}>
+                    <span style={{fontSize:"9px",fontWeight:isExact ? 700 : 500,color:isExact ? s.color : isActive ? `${s.color}88` : "#444",fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.5px"}}>{s.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Duration presets */}
+        <div style={{marginBottom:"16px"}}>
+          <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"8px"}}>DURATION</div>
+          <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+            {durationPresets.map(p => {
+              const isActive = p.min === duration;
+              return (
+                <button key={p.min} onClick={() => setDuration(p.min)} style={{
+                  padding:"10px 16px",borderRadius:"8px",cursor:"pointer",
+                  backgroundColor: isActive ? `${accentColor}18` : "#0c0c10",
+                  border: isActive ? `1px solid ${accentColor}44` : "1px solid #1a1a1f",
+                  color: isActive ? accentColor : "#888",
+                  fontSize:"13px",fontWeight:600,fontFamily:"'JetBrains Mono',monospace",
+                  transition:"all 0.15s",flex:"1 1 0",minWidth:"50px",
+                }}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div style={{marginBottom:"20px"}}>
+          <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>NOTES <span style={{color:"#333"}}>(OPTIONAL)</span></div>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder={isSurf ? "Clean lines, offshore wind..." : isGym ? "Felt strong today..." : "How'd it go..."}
+            rows={2}
+            style={{
+              width:"100%",padding:"12px 14px",backgroundColor:"#0c0c10",
+              border:"1px solid #1a1a1f",borderRadius:"10px",color:"#ccc",fontSize:"13px",
+              fontFamily:"'Instrument Sans',sans-serif",resize:"vertical",outline:"none",
+              lineHeight:1.5,
+            }}
+            onFocus={e => e.target.style.borderColor = `${accentColor}44`}
+            onBlur={e => e.target.style.borderColor = "#1a1a1f"}
+          />
+        </div>
+
+        {/* Buttons */}
+        <div style={{display:"flex",gap:"10px"}}>
+          <button onClick={handleSubmit} style={{
+            flex:1,padding:"14px",backgroundColor:accentColor,border:"none",borderRadius:"12px",
+            color:"#08080c",fontSize:"13px",fontWeight:700,cursor:"pointer",
+            fontFamily:"'JetBrains Mono',monospace",
+          }}>
+            Log Session
+          </button>
+          <button onClick={onSkip} style={{
+            padding:"14px 16px",backgroundColor:"#1a1a1f",border:"1px solid #333",borderRadius:"12px",
+            color:"#888",fontSize:"11px",cursor:"pointer",fontFamily:"'JetBrains Mono',monospace",
+          }}>
+            Skip
+          </button>
+        </div>
+
+        {/* Spot picker overlay */}
+        {showSpotPicker && (
+          <PickerList
+            items={SURF_SPOTS}
+            selected={spot}
+            onSelect={setSpot}
+            onDone={() => setShowSpotPicker(false)}
+          />
+        )}
+
+        {/* Board picker overlay */}
+        {showBoardPicker && (
+          <PickerList
+            items={BOARDS}
+            selected={board}
+            onSelect={setBoard}
+            onDone={() => setShowBoardPicker(false)}
+            renderItem={(b, sel) => (
+              <div>
+                <span style={{color:sel ? accentColor : "#ccc"}}>{b.name}</span>
+                <span style={{fontSize:"11px",color:"#555",marginLeft:"8px"}}>{b.type}{b.liters ? ` · ${b.liters}` : ""}</span>
+              </div>
+            )}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DayEditModal({ day, onSave, onClose, mobile }) {
   const [am, setAm] = useState(day.am);
   const [pm, setPm] = useState(day.pm);
@@ -1528,13 +1837,14 @@ function DayEditModal({ day, onSave, onClose, mobile }) {
 // DAY CARD (updated: tap to edit, activity clicks)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOpenActivity }) {
+function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOpenActivity, activityLogs, onOpenLog }) {
   const hasAM = day.am !== null, hasPM = day.pm !== null;
   const isToday = new Date().toDateString() === day.date.toDateString();
   const isWE = day.dayOfWeek === 0 || day.dayOfWeek === 6;
   const ds = day.date.toLocaleDateString("en-US", {month:"short",day:"numeric"});
   const dk = dateKey(day.date);
   const dayP = (progress && progress[dk]) || {};
+  const dayLogs = (activityLogs && activityLogs[dk]) || {};
   const gymDone = dayP.gym;
   const pmType = day.pm?.type;
   const pmDone = pmType === 'surf' ? dayP.surf : pmType === 'softball' ? dayP.softball : dayP.alt;
@@ -1564,8 +1874,11 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
         <div style={{flex:1,display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap"}}>
           {hasAM && day.am.type === "gym" && (
             <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-              {toggle && <CheckBtn checked={!!gymDone} onClick={() => toggle(day.date,'gym')} size={18} color="#00d4aa"/>}
-              <button onClick={() => onOpenWorkout(day.am.program)} style={{backgroundColor:"#00d4aa12",borderRadius:"6px",padding:"4px 10px",border:"1px solid #00d4aa22",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",opacity:gymDone?0.5:1}}>
+              {toggle && <CheckBtn checked={!!gymDone} onClick={() => toggle(day.date,'gym', { program: day.am.program })} size={18} color="#00d4aa"/>}
+              <button onClick={() => {
+                    if (gymDone && dayLogs.gym) { onOpenLog && onOpenLog({ date: day.date, activityKey: 'gym', log: dayLogs.gym, context: { program: day.am.program } }); }
+                    else { onOpenWorkout(day.am.program); }
+                  }} style={{backgroundColor:"#00d4aa12",borderRadius:"6px",padding:"4px 10px",border:"1px solid #00d4aa22",cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",opacity:gymDone?0.5:1}}>
                 <span style={{fontSize:"9px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace",fontWeight:600}}>GYM</span>
                 <span style={{fontSize:"11px",fontWeight:600,color:"#ccc",textDecoration:gymDone?"line-through":"none"}}>{WORKOUT_PROGRAMS[day.am.program]?.name.split("+")[0].trim()}</span>
                 <span style={{fontSize:"10px",color:"#00d4aa88"}}>&rarr;</span>
@@ -1580,8 +1893,11 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
           )}
           {hasPM && (
             <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-              {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey)} size={18} color={pmColor}/>}
-              <button onClick={() => onOpenActivity(pmActivity)} style={{backgroundColor:`${pmColor}12`,borderRadius:"6px",padding:"4px 10px",border:`1px solid ${pmColor}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",opacity:pmDone?0.5:1}}>
+              {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey, { activity: day.pm?.activity })} size={18} color={pmColor}/>}
+              <button onClick={() => {
+                    if (pmDone && dayLogs[pmKey]) { onOpenLog && onOpenLog({ date: day.date, activityKey: pmKey, log: dayLogs[pmKey], context: { activity: day.pm?.activity } }); }
+                    else { onOpenActivity(pmActivity); }
+                  }} style={{backgroundColor:`${pmColor}12`,borderRadius:"6px",padding:"4px 10px",border:`1px solid ${pmColor}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",opacity:pmDone?0.5:1}}>
                 <span style={{fontSize:"11px",fontWeight:600,color:pmDone?"#55555588":"#ccc",textDecoration:pmDone?"line-through":"none"}}>{getPmLabel()}</span>
                 <span style={{fontSize:"10px",color:`${pmColor}88`}}>&rarr;</span>
               </button>
@@ -1602,8 +1918,11 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
       </div>
       {hasAM && day.am.type === "gym" && (
         <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-          {toggle && <CheckBtn checked={!!gymDone} onClick={() => toggle(day.date,'gym')} size={18} color="#00d4aa"/>}
-          <button onClick={(e) => { e.stopPropagation(); onOpenWorkout(day.am.program); }} style={{flex:1,backgroundColor:"#00d4aa12",borderRadius:"8px",padding:"8px",cursor:"pointer",border:"1px solid #00d4aa22",opacity:gymDone?0.5:1,textAlign:"left"}}>
+          {toggle && <CheckBtn checked={!!gymDone} onClick={() => toggle(day.date,'gym', { program: day.am.program })} size={18} color="#00d4aa"/>}
+          <button onClick={(e) => { e.stopPropagation();
+                if (gymDone && dayLogs.gym) { onOpenLog && onOpenLog({ date: day.date, activityKey: 'gym', log: dayLogs.gym, context: { program: day.am.program } }); }
+                else { onOpenWorkout(day.am.program); }
+              }} style={{flex:1,backgroundColor:"#00d4aa12",borderRadius:"8px",padding:"8px",cursor:"pointer",border:"1px solid #00d4aa22",opacity:gymDone?0.5:1,textAlign:"left"}}>
             <div style={{fontSize:"9px",color:"#00d4aa",letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px"}}>AM GYM</div>
             <div style={{fontSize:"12px",fontWeight:600,color:"#ccc",textDecoration:gymDone?"line-through":"none"}}>{WORKOUT_PROGRAMS[day.am.program]?.name.split("+")[0].trim()}</div>
           </button>
@@ -1617,8 +1936,11 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
       )}
       {hasPM && (
         <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-          {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey)} size={18} color={pmColor}/>}
-          <button onClick={(e) => { e.stopPropagation(); onOpenActivity(pmActivity); }} style={{flex:1,backgroundColor:`${pmColor}0a`,borderRadius:"8px",padding:"8px",border:`1px solid ${pmColor}15`,opacity:pmDone?0.5:1,cursor:"pointer",textAlign:"left"}}>
+          {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey, { activity: day.pm?.activity })} size={18} color={pmColor}/>}
+          <button onClick={(e) => { e.stopPropagation();
+                if (pmDone && dayLogs[pmKey]) { onOpenLog && onOpenLog({ date: day.date, activityKey: pmKey, log: dayLogs[pmKey], context: { activity: day.pm?.activity } }); }
+                else { onOpenActivity(pmActivity); }
+              }} style={{flex:1,backgroundColor:`${pmColor}0a`,borderRadius:"8px",padding:"8px",border:`1px solid ${pmColor}15`,opacity:pmDone?0.5:1,cursor:"pointer",textAlign:"left"}}>
             <div style={{fontSize:"9px",letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px",color:pmColor}}>{isWE ? "" : "PM "}{pmType==="surf"?"SURF":pmType==="softball"?"SOFTBALL":"ACTIVE"}</div>
             <div style={{fontSize:"12px",fontWeight:500,color:"#aaa",textDecoration:pmDone?"line-through":"none"}}>{getPmLabel()}</div>
           </button>
@@ -1633,7 +1955,7 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
 // WEEK ROW
 // ═══════════════════════════════════════════════════════════════════════════
 
-function WeekRow({ week, onOpenWorkout, mobile, progress, toggle, onEditDay, onOpenActivity }) {
+function WeekRow({ week, onOpenWorkout, mobile, progress, toggle, onEditDay, onOpenActivity, activityLogs, onOpenLog }) {
   const ss = week.startDate.toLocaleDateString("en-US",{month:"long",day:"numeric"});
   const ed = new Date(week.startDate); ed.setDate(ed.getDate()+6);
   const es = ed.toLocaleDateString("en-US",{month:"long",day:"numeric"});
@@ -1655,14 +1977,14 @@ function WeekRow({ week, onOpenWorkout, mobile, progress, toggle, onEditDay, onO
           <span style={{fontSize:mobile?"11px":"13px",color:"#555",marginLeft:mobile?"8px":"12px"}}>{ss} &mdash; {es}</span>
         </div>
         <div style={{display:"flex",gap:"12px",alignItems:"center"}}>
-          <span style={{fontSize:"10px",color:gymDone===gymTotal&&gymTotal>0?"#00d4aa":"#00d4aa88",fontFamily:"'JetBrains Mono',monospace"}}>{gymDone}/{gymTotal} gym{gymDone===gymTotal&&gymTotal>0?" \u2713":""}</span>
-          <span style={{fontSize:"10px",color:surfDone===surfTotal&&surfTotal>0?"#48dbfb":"#48dbfb88",fontFamily:"'JetBrains Mono',monospace"}}>{surfDone}/{surfTotal} surf{surfDone===surfTotal&&surfTotal>0?" \u2713":""}</span>
+          <span style={{fontSize:"10px",color:gymDone===gymTotal&&gymTotal>0?"#00d4aa":"#00d4aa88",fontFamily:"'JetBrains Mono',monospace"}}>{gymDone}/{gymTotal} gym{gymDone===gymTotal&&gymTotal>0?" ✓":""}</span>
+          <span style={{fontSize:"10px",color:surfDone===surfTotal&&surfTotal>0?"#48dbfb":"#48dbfb88",fontFamily:"'JetBrains Mono',monospace"}}>{surfDone}/{surfTotal} surf{surfDone===surfTotal&&surfTotal>0?" ✓":""}</span>
         </div>
       </div>
       {mobile ? (
-        <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>{week.days.map((d,i) => <DayCard key={i} day={d} onOpenWorkout={onOpenWorkout} mobile={mobile} progress={progress} toggle={toggle} onEditDay={onEditDay} onOpenActivity={onOpenActivity} />)}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>{week.days.map((d,i) => <DayCard key={i} day={d} onOpenWorkout={onOpenWorkout} mobile={mobile} progress={progress} toggle={toggle} onEditDay={onEditDay} onOpenActivity={onOpenActivity} activityLogs={activityLogs} onOpenLog={onOpenLog} />)}</div>
       ) : (
-        <div style={{display:"flex",gap:"6px",overflowX:"auto",paddingBottom:"4px"}}>{week.days.map((d,i) => <DayCard key={i} day={d} onOpenWorkout={onOpenWorkout} mobile={mobile} progress={progress} toggle={toggle} onEditDay={onEditDay} onOpenActivity={onOpenActivity} />)}</div>
+        <div style={{display:"flex",gap:"6px",overflowX:"auto",paddingBottom:"4px"}}>{week.days.map((d,i) => <DayCard key={i} day={d} onOpenWorkout={onOpenWorkout} mobile={mobile} progress={progress} toggle={toggle} onEditDay={onEditDay} onOpenActivity={onOpenActivity} activityLogs={activityLogs} onOpenLog={onOpenLog} />)}</div>
       )}
     </div>
   );
@@ -1834,7 +2156,7 @@ function ProgressChart({ schedule, progress, mobile }) {
 // PROGRESS VIEW
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ProgressView({ schedule, progress, isComplete, toggle, mobile, reset }) {
+function ProgressView({ schedule, progress, isComplete, toggle, mobile, reset, activityLogs }) {
   let totalGym = 0, doneGym = 0, totalSurf = 0, doneSurf = 0, totalOther = 0, doneOther = 0;
   schedule.forEach(week => {
     week.days.forEach(d => {
@@ -1859,6 +2181,31 @@ function ProgressView({ schedule, progress, isComplete, toggle, mobile, reset })
   });
 
   const [showReset, setShowReset] = useState(false);
+
+  // Build recent sessions from activityLogs (most recent first, max 10)
+  const recentSessions = [];
+  if (activityLogs) {
+    Object.entries(activityLogs).forEach(([dk, dayLogs]) => {
+      Object.entries(dayLogs).forEach(([actKey, log]) => {
+        recentSessions.push({ date: dk, activityKey: actKey, ...log });
+      });
+    });
+    recentSessions.sort((a, b) => b.date.localeCompare(a.date) || (b.loggedAt || '').localeCompare(a.loggedAt || ''));
+  }
+  const visibleSessions = recentSessions.slice(0, 10);
+
+  const getSessionColor = (actKey) => {
+    if (actKey === 'surf') return '#48dbfb';
+    if (actKey === 'gym') return '#00d4aa';
+    if (actKey === 'softball') return '#c39bd3';
+    return '#82e0aa';
+  };
+  const getSessionLabel = (actKey) => {
+    if (actKey === 'surf') return 'SURF';
+    if (actKey === 'gym') return 'GYM';
+    if (actKey === 'softball') return 'SOFTBALL';
+    return 'ACTIVE';
+  };
 
   return (
     <div>
@@ -1901,19 +2248,63 @@ function ProgressView({ schedule, progress, isComplete, toggle, mobile, reset })
                   </div>
                   {hasGym && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <CheckBtn checked={!!gymDone} onClick={() => toggle(d.date, 'gym')} size={18} color="#00d4aa" />
+                      <CheckBtn checked={!!gymDone} onClick={() => toggle(d.date, 'gym', { program: d.am.program })} size={18} color="#00d4aa" />
                       <span style={{ fontSize: '11px', color: gymDone ? '#00d4aa88' : '#888', textDecoration: gymDone ? 'line-through' : 'none' }}>Gym {d.am.program}</span>
                     </div>
                   )}
                   {hasPM && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <CheckBtn checked={!!pmDone} onClick={() => toggle(d.date, pmType === 'surf' ? 'surf' : pmType === 'softball' ? 'softball' : 'alt')} size={18} color={pmType === 'surf' ? '#48dbfb' : pmType === 'softball' ? '#c39bd3' : '#82e0aa'} />
+                      <CheckBtn checked={!!pmDone} onClick={() => toggle(d.date, pmType === 'surf' ? 'surf' : pmType === 'softball' ? 'softball' : 'alt', { activity: d.pm?.activity })} size={18} color={pmType === 'surf' ? '#48dbfb' : pmType === 'softball' ? '#c39bd3' : '#82e0aa'} />
                       <span style={{ fontSize: '11px', color: pmDone ? '#66666688' : '#888', textDecoration: pmDone ? 'line-through' : 'none' }}>
                         {pmType === 'surf' ? 'Surf' : pmType === 'softball' ? 'Softball' : ALT_ACTIVITIES[d.pm.activity]?.name || 'Active'}
                       </span>
                     </div>
                   )}
                   {!hasGym && !hasPM && <div style={{ fontSize: '10px', color: '#333' }}>Rest</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Recent logged sessions */}
+      {visibleSessions.length > 0 && (
+        <div style={{ backgroundColor: '#0c0c10', borderRadius: '14px', padding: mobile ? '16px' : '20px', border: '1px solid #1a1a1f', marginBottom: '28px' }}>
+          <div style={{ fontSize: '10px', letterSpacing: '2px', color: '#48dbfb', fontFamily: "'JetBrains Mono',monospace", marginBottom: '14px' }}>RECENT SESSIONS</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {visibleSessions.map((s, i) => {
+              const d = new Date(s.date + 'T12:00:00');
+              const ds = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+              const color = getSessionColor(s.activityKey);
+              const stokeData = s.stoke ? STOKE_LEVELS.find(sl => sl.value === s.stoke) : null;
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'stretch', gap: '0', borderRadius: '10px', overflow: 'hidden', border: '1px solid #181820' }}>
+                  <div style={{ width: '4px', backgroundColor: color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, padding: '10px 12px', backgroundColor: '#111116' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '9px', letterSpacing: '1px', color: color, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{getSessionLabel(s.activityKey)}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#ccc' }}>
+                          {s.activityKey === 'surf' && s.spot ? s.spot : s.activityKey === 'gym' ? `Workout ${s.program || ''}` : s.activityKey.charAt(0).toUpperCase() + s.activityKey.slice(1)}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#555', fontFamily: "'JetBrains Mono',monospace" }}>{ds}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {s.duration && <span style={{ fontSize: '10px', color: '#777', fontFamily: "'JetBrains Mono',monospace" }}>{s.duration >= 60 ? `${Math.floor(s.duration/60)}h${s.duration%60 ? `${s.duration%60}m` : ''}` : `${s.duration}m`}</span>}
+                      {s.board && <span style={{ fontSize: '10px', color: '#555' }}>{s.board}</span>}
+                      {stokeData && (
+                        <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+                          {STOKE_LEVELS.map(sl => (
+                            <div key={sl.value} style={{ width: '12px', height: '4px', borderRadius: '2px', backgroundColor: sl.value <= s.stoke ? sl.color : '#1a1a1f' }} />
+                          ))}
+                          <span style={{ fontSize: '9px', color: stokeData.color, fontFamily: "'JetBrains Mono',monospace", marginLeft: '4px' }}>{stokeData.label}</span>
+                        </div>
+                      )}
+                    </div>
+                    {s.notes && <div style={{ fontSize: '11px', color: '#666', marginTop: '4px', lineHeight: 1.4 }}>{s.notes}</div>}
+                  </div>
                 </div>
               );
             })}
@@ -1941,6 +2332,113 @@ function ProgressView({ schedule, progress, isComplete, toggle, mobile, reset })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// SESSION SUMMARY SHEET (Phase 4 — tap completed activity to review)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function SessionSummarySheet({ data, onClose, onViewDetail, mobile }) {
+  if (!data) return null;
+  const { date, activityKey, log, context } = data;
+  const ds = date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  const isSurf = activityKey === 'surf';
+  const isGym = activityKey === 'gym';
+  const accentColor = isSurf ? "#48dbfb" : isGym ? "#00d4aa" : activityKey === 'softball' ? "#c39bd3" : "#82e0aa";
+  const stokeData = isSurf && log.stoke ? STOKE_LEVELS.find(s => s.value === log.stoke) : null;
+
+  const formatDuration = (min) => {
+    if (!min) return '';
+    if (min >= 60) return `${Math.floor(min/60)}h${min%60 ? ` ${min%60}m` : ''}`;
+    return `${min}m`;
+  };
+
+  const title = isSurf ? (log.spot || 'Surf Session')
+    : isGym ? `Gym — Workout ${context?.program || log.program || ''}`
+    : activityKey === 'softball' ? 'Softball'
+    : (log.activity ? (ALT_ACTIVITIES[log.activity]?.name || 'Activity') : 'Activity');
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:10001,display:"flex",alignItems:"flex-end",justifyContent:"center",backgroundColor:"rgba(0,0,0,0.55)"}} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width:"100%",maxWidth:"480px",backgroundColor:"#14141c",borderRadius:"20px 20px 0 0",
+        padding:mobile?"20px 16px 28px":"24px 20px 32px",
+        paddingBottom:`calc(${mobile?"28px":"32px"} + env(safe-area-inset-bottom, 0px))`,
+      }}>
+        <div style={{width:"36px",height:"4px",borderRadius:"2px",backgroundColor:"#333",margin:"0 auto 16px"}} />
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"20px"}}>
+          <div>
+            <div style={{fontSize:"10px",letterSpacing:"1.5px",color:accentColor,fontFamily:"'JetBrains Mono',monospace",marginBottom:"4px"}}>SESSION LOG</div>
+            <div style={{fontSize:"18px",fontWeight:700,color:"#fff"}}>{title}</div>
+            <div style={{fontSize:"11px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginTop:"2px"}}>{ds}</div>
+          </div>
+          <button onClick={onClose} style={{background:"#222",border:"none",color:"#888",fontSize:"16px",cursor:"pointer",width:"36px",height:"36px",borderRadius:"18px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
+        </div>
+
+        {/* Stats row */}
+        <div style={{display:"flex",gap:"8px",marginBottom:"16px",flexWrap:"wrap"}}>
+          {log.duration && (
+            <div style={{backgroundColor:"#0c0c10",borderRadius:"10px",padding:"12px 16px",border:"1px solid #1a1a1f",flex:"1 1 0",minWidth:"80px",textAlign:"center"}}>
+              <div style={{fontSize:"9px",letterSpacing:"1px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"4px"}}>DURATION</div>
+              <div style={{fontSize:"16px",fontWeight:700,color:"#fff",fontFamily:"'JetBrains Mono',monospace"}}>{formatDuration(log.duration)}</div>
+            </div>
+          )}
+          {isSurf && log.board && (
+            <div style={{backgroundColor:"#0c0c10",borderRadius:"10px",padding:"12px 16px",border:"1px solid #1a1a1f",flex:"2 1 0",minWidth:"120px",textAlign:"center"}}>
+              <div style={{fontSize:"9px",letterSpacing:"1px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"4px"}}>BOARD</div>
+              <div style={{fontSize:"13px",fontWeight:600,color:"#fff"}}>{log.board}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Stoke bar */}
+        {stokeData && (
+          <div style={{marginBottom:"16px"}}>
+            <div style={{fontSize:"9px",letterSpacing:"1px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"8px"}}>STOKE</div>
+            <div style={{display:"flex",gap:"3px",marginBottom:"6px"}}>
+              {STOKE_LEVELS.map(s => (
+                <div key={s.value} style={{
+                  flex:1,height:"6px",borderRadius:"3px",
+                  backgroundColor: s.value <= log.stoke ? s.color : "#1a1a1f",
+                  transition:"all 0.2s",
+                }} />
+              ))}
+            </div>
+            <div style={{fontSize:"12px",fontWeight:600,color:stokeData.color,fontFamily:"'JetBrains Mono',monospace"}}>{stokeData.label}</div>
+          </div>
+        )}
+
+        {/* Notes */}
+        {log.notes && (
+          <div style={{marginBottom:"20px"}}>
+            <div style={{fontSize:"9px",letterSpacing:"1px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>NOTES</div>
+            <div style={{fontSize:"13px",color:"#999",lineHeight:1.5,backgroundColor:"#0c0c10",borderRadius:"10px",padding:"12px 14px",border:"1px solid #1a1a1f"}}>{log.notes}</div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div style={{display:"flex",gap:"10px"}}>
+          {onViewDetail && (
+            <button onClick={onViewDetail} style={{
+              flex:1,padding:"14px",backgroundColor:"#1a1a1f",border:"1px solid #333",borderRadius:"12px",
+              color:accentColor,fontSize:"12px",fontWeight:600,cursor:"pointer",
+              fontFamily:"'JetBrains Mono',monospace",
+            }}>
+              {isGym ? "View Workout" : "Activity Details"}
+            </button>
+          )}
+          <button onClick={onClose} style={{
+            flex:1,padding:"14px",backgroundColor:"#1a1a1f",border:"1px solid #222",borderRadius:"12px",
+            color:"#888",fontSize:"12px",cursor:"pointer",fontFamily:"'JetBrains Mono',monospace",
+          }}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1952,8 +2450,13 @@ export default function SurfTrainingSchedule() {
   const [openActivity, setOpenActivity] = useState(null);
   const [swapTarget, setSwapTarget] = useState(null);
   const { progress, toggle, isComplete, reset } = useProgress();
+  const { logs: activityLogs, saveLog, removeLog, getLog } = useActivityLog();
   const [overrides, setOverrides] = useLocalState('surf-overrides', {});
   const [swaps, setSwaps] = useLocalState('surf-swaps', {});
+
+  // Session log sheet state
+  const [logSheet, setLogSheet] = useState(null); // { date, activityKey, context }
+  const [logSummary, setLogSummary] = useState(null); // { date, activityKey, log, context }
 
   // Program start date — stored so it persists
   const [startDateStr] = useLocalState('surf-start-date', '2026-03-16');
@@ -1965,7 +2468,6 @@ export default function SurfTrainingSchedule() {
   // Exercise swaps — permanent replacements (not per-day)
   const handleSwapExercise = (original, replacement) => {
     if (!replacement) {
-      // Revert: remove the swap entry
       setSwaps(prev => { const next = { ...prev }; delete next[original]; return next; });
     } else {
       setSwaps(prev => ({ ...prev, [original]: replacement }));
@@ -1976,7 +2478,6 @@ export default function SurfTrainingSchedule() {
     if (!editDay) return;
     const dk = dateKey(editDay.date);
     if (am === "__reset__") {
-      // Remove override
       setOverrides(prev => {
         const next = { ...prev };
         delete next[dk];
@@ -1985,6 +2486,34 @@ export default function SurfTrainingSchedule() {
     } else {
       setOverrides(prev => ({ ...prev, [dk]: { am, pm } }));
     }
+  };
+
+  // Wrapped toggle: when checking ON, open log sheet. When unchecking, remove log.
+  const handleToggle = useCallback((date, activityKey, context) => {
+    const dk = dateKey(date);
+    const isCurrentlyDone = !!(progress[dk] && progress[dk][activityKey]);
+
+    if (isCurrentlyDone) {
+      // Unchecking — toggle off and remove log
+      toggle(date, activityKey);
+      removeLog(date, activityKey);
+    } else {
+      // Checking ON — toggle on immediately, then open log sheet
+      toggle(date, activityKey);
+      setLogSheet({ date, activityKey, context: context || {} });
+    }
+  }, [progress, toggle, removeLog]);
+
+  const handleLogSubmit = (logData) => {
+    if (logSheet) {
+      saveLog(logSheet.date, logSheet.activityKey, logData);
+    }
+    setLogSheet(null);
+  };
+
+  const handleLogSkip = () => {
+    // Already checked on — just close the sheet without saving log details
+    setLogSheet(null);
   };
 
   return (
@@ -2009,6 +2538,31 @@ export default function SurfTrainingSchedule() {
           mobile={mobile}
         />
       )}
+      {logSheet && (
+        <SessionLogSheet
+          activityKey={logSheet.activityKey}
+          context={logSheet.context}
+          date={logSheet.date}
+          onSubmit={handleLogSubmit}
+          onSkip={handleLogSkip}
+          onClose={handleLogSkip}
+          mobile={mobile}
+        />
+      )}
+      {logSummary && (
+        <SessionSummarySheet
+          data={logSummary}
+          onClose={() => setLogSummary(null)}
+          onViewDetail={() => {
+            const ctx = logSummary.context;
+            const actKey = logSummary.activityKey;
+            setLogSummary(null);
+            if (actKey === 'gym' && ctx?.program) setOpenWorkout(ctx.program);
+            else setOpenActivity(ctx?.activity || actKey);
+          }}
+          mobile={mobile}
+        />
+      )}
 
       <div style={{padding:mobile?"28px 16px 20px":"48px 32px 32px",maxWidth:"1100px",margin:"0 auto",borderBottom:"1px solid #111"}}>
         <div style={{fontSize:mobile?"9px":"10px",letterSpacing:mobile?"3px":"4px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace",marginBottom:"8px"}}>SURF PERFORMANCE PROGRAM</div>
@@ -2017,7 +2571,7 @@ export default function SurfTrainingSchedule() {
         </h1>
         <p style={{fontSize:mobile?"12px":"14px",color:"#666",maxWidth:"600px",lineHeight:1.5}}>
           3 gym sessions &middot; 3 surf sessions &middot; 1 softball night &middot; alt activities for flat days.
-          {!mobile && <br/>}{mobile ? " \u2014 " : " "}
+          {!mobile && <br/>}{mobile ? " — " : " "}
           Rolling mesocycles. Tap any day to customize. Tap SWAP on exercises.
         </p>
         <div style={{display:"flex",gap:"2px",marginTop:mobile?"16px":"24px",flexWrap:"wrap"}}>
@@ -2042,7 +2596,7 @@ export default function SurfTrainingSchedule() {
               return (
                 <div key={week.weekNumber}>
                   {cm !== pm && <div style={{fontSize:mobile?"16px":"20px",fontWeight:700,color:"#333",marginBottom:mobile?"12px":"20px",marginTop:idx===0?"0":mobile?"32px":"48px",paddingBottom:"12px",borderBottom:"1px solid #151518",fontFamily:"'Instrument Sans',sans-serif",letterSpacing:"-0.5px"}}>{mn}</div>}
-                  <WeekRow week={week} onOpenWorkout={setOpenWorkout} mobile={mobile} progress={progress} toggle={toggle} onEditDay={setEditDay} onOpenActivity={setOpenActivity} />
+                  <WeekRow week={week} onOpenWorkout={setOpenWorkout} mobile={mobile} progress={progress} toggle={handleToggle} onEditDay={setEditDay} onOpenActivity={setOpenActivity} activityLogs={activityLogs} onOpenLog={setLogSummary} />
                 </div>
               );
             })}
@@ -2052,7 +2606,7 @@ export default function SurfTrainingSchedule() {
             </div>
           </>
         )}
-        {activeTab === "progress" && <ProgressView schedule={schedule} progress={progress} isComplete={isComplete} toggle={toggle} mobile={mobile} reset={reset} />}
+        {activeTab === "progress" && <ProgressView schedule={schedule} progress={progress} isComplete={isComplete} toggle={handleToggle} mobile={mobile} reset={reset} activityLogs={activityLogs} />}
         {activeTab === "workouts" && <><ProgramOverview onOpenWorkout={setOpenWorkout} mobile={mobile} /><AltActivities mobile={mobile} onOpenActivity={setOpenActivity} /></>}
         {activeTab === "philosophy" && <PhilosophySection mobile={mobile} />}
       </div>
