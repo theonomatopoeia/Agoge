@@ -34,441 +34,249 @@ function useMobile(breakpoint = 480) {
   return isMobile;
 }
 
+
 // ═══════════════════════════════════════════════════════════════════════════
-// SHARED DRAWING LIBRARY
+// EXERCISE VISUAL COMPONENT (Phase 5 — replaces canvas animations)
+// Loads animated GIFs from ExerciseDB API, falls back to free-exercise-db photos
 // ═══════════════════════════════════════════════════════════════════════════
 
-const C = {
-  skin: "#c8a882", skinL: "#d4b594", skinS: "#a88a6a", skinD: "#96785c",
-  contour: "#7a6248", active: "#00d4aa", activeF: "rgba(0,212,170,0.22)",
-  activeFLo: "rgba(0,212,170,0.12)", secondary: "#f39c12",
-  secondaryF: "rgba(243,156,18,0.15)", metal: "#555568", pad: "#2e2e3c",
-  plate: "#48dbfb", floor: "#0b0b12", floorLine: "#15151e",
+const EXERCISEDB_API_KEY = "500895f697msh70c2a4e7000ee04p1c940ejsn77313a50bca9";
+
+// Maps our exercise names → ExerciseDB search terms + free-exercise-db fallback IDs
+const GIF_SEARCH_MAP = {
+  "Arm Circles (slow)": { s: "arm circles", fb: null },
+  "Assisted Squat Hold": { s: "assisted squat", fb: null },
+  "BOSU Ball Balance": { s: "bosu ball", fb: null },
+  "Band Low-to-High Chop": { s: "band woodchop", fb: null },
+  "Band Overhead Stretch": { s: "band overhead", fb: null },
+  "Band Pallof Press": { s: "pallof press", fb: null },
+  "Band Pass-Throughs": { s: "band shoulder", fb: null },
+  "Band Pull-Aparts (heavy)": { s: "band pull apart", fb: "Band_Pull_Apart" },
+  "Band Pull-Aparts + Ext Rotation": { s: "band pull apart", fb: "Band_Pull_Apart" },
+  "Band Pull-Throughs": { s: "band pull through", fb: null },
+  "Band Seated Row": { s: "band row", fb: null },
+  "Band Woodchop (kneeling)": { s: "band woodchop", fb: null },
+  "Belt Squat": { s: "belt squat", fb: null },
+  "Bird Dogs": { s: "bird dog", fb: "Bird_Dog" },
+  "Bodyweight Split Squat Jump": { s: "split squat jump", fb: null },
+  "Bodyweight Squat": { s: "bodyweight squat", fb: "Bodyweight_Squat" },
+  "Book Openers": { s: "thoracic rotation", fb: null },
+  "Book Openers (side-lying)": { s: "thoracic rotation", fb: null },
+  "Broad Jumps": { s: "broad jump", fb: "Standing_Long_Jump" },
+  "Butterfly Stretch": { s: "butterfly stretch", fb: "Butterfly" },
+  "Cable External Rotation": { s: "cable external rotation", fb: "External_Rotation_with_Cable" },
+  "Chest-Supported DB Row": { s: "chest supported dumbbell row", fb: "Incline_Dumbbell_Row" },
+  "Clamshells": { s: "clamshell", fb: "Clam" },
+  "Cossack Squat": { s: "cossack squat", fb: null },
+  "Couch Stretch": { s: "hip flexor stretch", fb: "Kneeling_Hip_Flexor" },
+  "DB Arnold Press": { s: "arnold press", fb: "Arnold_Dumbbell_Press" },
+  "DB Sumo Squat": { s: "dumbbell sumo squat", fb: "Sumo_Deadlift" },
+  "DB Uppercut": { s: "dumbbell uppercut", fb: null },
+  "Dead Bug": { s: "dead bug", fb: "Dead_Bug" },
+  "Donkey Kicks": { s: "donkey kick", fb: "Donkey_Calf_Raises" },
+  "Doorframe Stretch": { s: "doorway chest stretch", fb: null },
+  "Dumbbell Bent-Over Row": { s: "dumbbell bent over row", fb: "Bent_Over_Dumbbell_Row" },
+  "Dumbbell Swings": { s: "dumbbell swing", fb: "Kettlebell_Sumo_Deadlift_High_Pull" },
+  "Dumbbell Woodchop": { s: "dumbbell woodchop", fb: null },
+  "Elevated Hip Flexor Stretch": { s: "hip flexor stretch", fb: "Kneeling_Hip_Flexor" },
+  "Explosive Step-Ups": { s: "step up", fb: "Dumbbell_Step_Ups" },
+  "Eyes-Closed Single-Leg Stand": { s: "single leg stand", fb: null },
+  "Figure-4 Stretch (supine)": { s: "figure four stretch", fb: "Piriformis-SMR" },
+  "Fire Hydrants": { s: "fire hydrant", fb: "Fire_Hydrant" },
+  "Frog Stretch": { s: "frog stretch", fb: null },
+  "Goblet Squat": { s: "goblet squat", fb: "Goblet_Squat" },
+  "Goblet Squat Hold": { s: "goblet squat", fb: "Goblet_Squat" },
+  "Good Mornings": { s: "good morning", fb: "Good_Morning" },
+  "Half-Kneeling DB Press": { s: "kneeling press", fb: null },
+  "Hindu Push-Ups": { s: "hindu push up", fb: "Hindu_Push-Up" },
+  "Hip Thrusts": { s: "hip thrust", fb: "Barbell_Hip_Thrust" },
+  "Inchworm": { s: "inchworm", fb: "Inchworm" },
+  "Inverted Row": { s: "inverted row", fb: "Inverted_Row" },
+  "Lacrosse Ball T-spine": { s: "foam roll", fb: null },
+  "Light DB Reverse Flyes": { s: "reverse fly", fb: "Dumbbell_Rear_Delt_Fly" },
+  "Light DB Y-T-W": { s: "prone y raise", fb: null },
+  "Lying Leg Raises": { s: "lying leg raise", fb: "Flat_Bench_Lying_Leg_Raise" },
+  "Med Ball Rotational Slam": { s: "medicine ball slam", fb: null },
+  "Med Ball Rotational Throw": { s: "medicine ball throw", fb: null },
+  "Nordic Curl (eccentric)": { s: "nordic curl", fb: null },
+  "Plank Shoulder Taps": { s: "plank tap", fb: "Plank" },
+  "Plate Pinch Walk": { s: "farmer walk", fb: null },
+  "Prone External Rotation": { s: "external rotation", fb: "External_Rotation_with_Cable" },
+  "Prone I-Y-T Raises": { s: "prone raise", fb: null },
+  "Prone Y-T Raises": { s: "prone raise", fb: null },
+  "Push Press (DB)": { s: "push press", fb: "Push_Press" },
+  "Push-Ups + Side Plank": { s: "push up", fb: "Push-Up_Wide" },
+  "Quadruped Rockbacks": { s: "quadruped rock", fb: "All_Fours_Quad_Stretch" },
+  "Resistance Band Row": { s: "band row", fb: null },
+  "Reverse Dumbbell Flyes": { s: "reverse fly", fb: "Dumbbell_Rear_Delt_Fly" },
+  "Reverse Lunge (weighted)": { s: "reverse lunge", fb: "Dumbbell_Lunges_Walking" },
+  "Scapular Push-Ups": { s: "scapular push up", fb: null },
+  "Seated Hip Circles": { s: "seated hip circle", fb: null },
+  "Seated Pigeon (chair)": { s: "seated figure four", fb: null },
+  "Seated Spinal Waves": { s: "cat cow", fb: "Cat_Stretch" },
+  "Side-Lying External Rotation": { s: "side lying external rotation", fb: "Side-Lying_Floor_Stretch" },
+  "Single-Leg Glute Bridge": { s: "single leg bridge", fb: "Single-Leg_Glute_Bridge" },
+  "Spiderman Push-Ups": { s: "spiderman push up", fb: null },
+  "Spiderman Stretch": { s: "spiderman stretch", fb: null },
+  "Split Squat (floor)": { s: "split squat", fb: "Single_Leg_Squat" },
+  "Squat Jumps": { s: "squat jump", fb: "Freehand_Jump_Squat" },
+  "Staggered Stance RDL": { s: "single leg romanian deadlift", fb: "Romanian_Deadlift" },
+  "Standing Hip Circles": { s: "hip circle", fb: null },
+  "Standing Hip Flexor Stretch": { s: "hip flexor stretch", fb: "Kneeling_Hip_Flexor" },
+  "Standing Quad/Hip Flexor Pull": { s: "quad stretch", fb: "All_Fours_Quad_Stretch" },
+  "Star Excursion Balance": { s: "single leg reach", fb: null },
+  "Step-Up (weighted)": { s: "dumbbell step up", fb: "Dumbbell_Step_Ups" },
+  "Step-Up to Knee Drive": { s: "step up", fb: "Dumbbell_Step_Ups" },
+  "Suitcase Carry": { s: "suitcase carry", fb: null },
+  "TRX / Ring Row": { s: "inverted row", fb: "Inverted_Row" },
+  "Thomas Stretch (off table)": { s: "hip flexor stretch", fb: "Kneeling_Hip_Flexor" },
+  "Thread the Needle (hip)": { s: "thread the needle", fb: null },
+  "V-Ups": { s: "v up", fb: "V-Up" },
+  "Waiter Walk": { s: "overhead carry", fb: null },
+  "Walking Lunges": { s: "walking lunge", fb: "Dumbbell_Lunges_Walking" },
+  "Wall Angels": { s: "wall angel", fb: null },
+  "Wall Lat Stretch": { s: "lat stretch", fb: null },
+  "Wall Sit": { s: "wall sit", fb: "Wall_Squat" },
+  "Wall Slides": { s: "wall slide", fb: null },
+  "World's Greatest Stretch": { s: "greatest stretch", fb: null },
+  "Zercher Squat": { s: "zercher squat", fb: null },
 };
 
-function setupCanvas(canvas, w, h) {
-  const ctx = canvas.getContext("2d");
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  ctx.scale(dpr, dpr);
-  return ctx;
+const GITHUB_IMG_BASE = "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises";
+
+// Cache for ExerciseDB IDs so we only search once per exercise
+function getEdbCache() {
+  try { return JSON.parse(localStorage.getItem("edb_cache") || "{}"); } catch { return {}; }
+}
+function setEdbCache(cache) {
+  try { localStorage.setItem("edb_cache", JSON.stringify(cache)); } catch {}
 }
 
-function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
-function lerp(a, b, t) { return a + (b - a) * t; }
-function ang(x1,y1,x2,y2) { return Math.atan2(y2-y1,x2-x1); }
-
-function stdProgress(elapsed, dur = 2800) {
-  const t = (elapsed % dur) / dur;
-  if (t < 0.4) return easeInOut(t / 0.4);
-  if (t < 0.5) return 1;
-  if (t < 0.9) return 1 - easeInOut((t - 0.5) / 0.4);
-  return 0;
-}
-
-function drawLimb(ctx, x1,y1,x2,y2, w1,wM,w2, fill, outline, sepLine) {
-  const a = ang(x1,y1,x2,y2), p = a+Math.PI/2;
-  const co = Math.cos(p), si = Math.sin(p);
-  const mx=(x1+x2)/2, my=(y1+y2)/2;
-  ctx.beginPath();
-  ctx.moveTo(x1+co*w1/2, y1+si*w1/2);
-  ctx.quadraticCurveTo(mx+co*wM/2, my+si*wM/2, x2+co*w2/2, y2+si*w2/2);
-  ctx.lineTo(x2-co*w2/2, y2-si*w2/2);
-  ctx.quadraticCurveTo(mx-co*wM*0.42, my-si*wM*0.42, x1-co*w1/2, y1-si*w1/2);
-  ctx.closePath();
-  ctx.fillStyle = fill; ctx.fill();
-  ctx.strokeStyle = outline; ctx.lineWidth = 1.3; ctx.stroke();
-  if (sepLine) {
-    ctx.strokeStyle = sepLine; ctx.lineWidth = 0.8;
-    const off = wM*0.12;
-    ctx.beginPath();
-    ctx.moveTo(x1+co*off, y1+si*off);
-    ctx.quadraticCurveTo(mx+co*(off+1), my+si*(off+1), x2+co*off*0.4, y2+si*off*0.4);
-    ctx.stroke();
-  }
-}
-
-function drawMuscleHL(ctx, x1,y1,x2,y2, w1,wM,w2, side, color, fill) {
-  const a = ang(x1,y1,x2,y2), p = a+Math.PI/2;
-  const co = Math.cos(p), si = Math.sin(p);
-  const mx=(x1+x2)/2, my=(y1+y2)/2;
-  const s = side==="outer"?1:-1, sh=0.82;
-  ctx.beginPath();
-  ctx.moveTo(x1+s*co*w1/2*sh, y1+s*si*w1/2*sh);
-  ctx.quadraticCurveTo(mx+s*co*wM/2*sh, my+s*si*wM/2*sh, x2+s*co*w2/2*sh, y2+s*si*w2/2*sh);
-  ctx.lineTo(x2+s*co*w2*0.04, y2+s*si*w2*0.04);
-  ctx.quadraticCurveTo(mx+s*co*wM*0.04, my+s*si*wM*0.04, x1+s*co*w1*0.04, y1+s*si*w1*0.04);
-  ctx.closePath();
-  ctx.fillStyle = fill; ctx.fill();
-  ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
-}
-
-function drawJoint(ctx, x, y, r, kneecap) {
-  ctx.fillStyle = C.skin; ctx.strokeStyle = C.contour; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  if (kneecap) {
-    ctx.fillStyle = C.skinL;
-    ctx.beginPath(); ctx.ellipse(x+2,y,r*0.6,r*0.75,0.1,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle = C.contour; ctx.lineWidth = 0.6; ctx.stroke();
-  }
-}
-
-function drawHead(ctx, x, y, angle) {
-  ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
-  ctx.fillStyle = C.skin;
-  ctx.beginPath(); ctx.ellipse(0,0,11,13,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle = C.contour; ctx.lineWidth = 1.3; ctx.stroke();
-  ctx.strokeStyle = C.contour; ctx.lineWidth = 0.8;
-  ctx.beginPath(); ctx.moveTo(-8,3); ctx.quadraticCurveTo(-6,12,0,13); ctx.quadraticCurveTo(4,12,6,5); ctx.stroke();
-  ctx.fillStyle = C.skinS;
-  ctx.beginPath(); ctx.ellipse(-3,-2,3,2,-0.1,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = "#3a3028";
-  ctx.beginPath(); ctx.ellipse(-3,-2,1.5,1,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle = C.contour; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.ellipse(9,-1,3,5,0.1,-0.5,Math.PI*1.5); ctx.stroke();
-  ctx.strokeStyle = C.skinD; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(-3,0); ctx.lineTo(-9,2); ctx.lineTo(-7,4); ctx.stroke();
-  ctx.fillStyle = C.skin;
-  ctx.beginPath(); ctx.moveTo(-5,11); ctx.lineTo(-6,24); ctx.lineTo(8,24); ctx.lineTo(7,9); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = C.contour; ctx.lineWidth = 0.8;
-  ctx.beginPath(); ctx.moveTo(-5,11); ctx.lineTo(-6,24); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(7,9); ctx.lineTo(8,24); ctx.stroke();
-  ctx.strokeStyle = C.skinS; ctx.lineWidth = 0.6;
-  ctx.beginPath(); ctx.moveTo(1,10); ctx.quadraticCurveTo(-1,17,2,24); ctx.stroke();
-  ctx.restore();
-}
-
-function drawTorso(ctx, sx,sy, hx,hy) {
-  const a = ang(sx,sy,hx,hy), p = a+Math.PI/2;
-  const co = Math.cos(p), si = Math.sin(p);
-  const sWf=20,sWb=14, hWf=12,hWb=10;
-  const sf=[sx+co*sWf,sy+si*sWf], sb=[sx-co*sWb,sy-si*sWb];
-  const hf=[hx+co*hWf,hy+si*hWf], hb=[hx-co*hWb,hy-si*hWb];
-  const wt=0.6, wY=sy+(hy-sy)*wt, wX=sx+(hx-sx)*wt;
-  const wf=[wX+co*10,wY+si*10], wb=[wX-co*9,wY-si*9];
-  ctx.beginPath(); ctx.moveTo(sf[0],sf[1]);
-  ctx.quadraticCurveTo((sf[0]+wf[0])/2+co*3,(sf[1]+wf[1])/2+si*3, wf[0],wf[1]);
-  ctx.quadraticCurveTo((wf[0]+hf[0])/2+co,(wf[1]+hf[1])/2+si, hf[0],hf[1]);
-  ctx.lineTo(hb[0],hb[1]);
-  ctx.quadraticCurveTo((wb[0]+hb[0])/2,(wb[1]+hb[1])/2, wb[0],wb[1]);
-  ctx.quadraticCurveTo((sb[0]+wb[0])/2-co,(sb[1]+wb[1])/2-si, sb[0],sb[1]);
-  ctx.closePath();
-  const g = ctx.createLinearGradient(sf[0],sf[1],sb[0],sb[1]);
-  g.addColorStop(0,C.skinL); g.addColorStop(0.6,C.skin); g.addColorStop(1,C.skinS);
-  ctx.fillStyle = g; ctx.fill();
-  ctx.strokeStyle = C.contour; ctx.lineWidth = 1.3; ctx.stroke();
-  ctx.strokeStyle = C.skinS; ctx.lineWidth = 0.7;
-  const pY=sy+(hy-sy)*0.15, pX=sx+(hx-sx)*0.15;
-  ctx.beginPath(); ctx.moveTo(pX+co*sWf*0.8,pY+si*sWf*0.8);
-  ctx.quadraticCurveTo(pX+co*5,pY+si*5+4,pX-co*2,pY-si*2+3); ctx.stroke();
-  for(let i=0;i<3;i++){const yo=i*8,oY=sy+(hy-sy)*(0.35+i*0.03),oX=sx+(hx-sx)*(0.35+i*0.03);
-  ctx.beginPath();ctx.moveTo(oX+co*12+(hx-sx)*0.03*yo,oY+si*12+yo);
-  ctx.lineTo(oX+co*6+(hx-sx)*0.03*yo,oY+si*6+yo+3);ctx.stroke();}
-  ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.moveTo(sx+co*3,sy+si*3+5);ctx.lineTo(hx+co,hy+si-2);ctx.stroke();
-  for(let i=1;i<=3;i++){const t=0.3+i*0.15,ay=sy+(hy-sy)*t,ax=sx+(hx-sx)*t;
-  ctx.beginPath();ctx.moveTo(ax+co,ay+si);ctx.lineTo(ax+co*8,ay+si*8);ctx.stroke();}
-  ctx.fillStyle = C.skin; ctx.strokeStyle = C.contour; ctx.lineWidth = 1;
-  const ca=Math.cos(a),sa=Math.sin(a);
-  ctx.beginPath(); ctx.moveTo(sf[0]-co*2,sf[1]-si*2);
-  ctx.quadraticCurveTo(sx+co*sWf+co*6+ca*3,sy+si*sWf+si*6+sa*3,sx+co*sWf*0.5+ca*18,sy+si*sWf*0.5+sa*18);
-  ctx.quadraticCurveTo(sx+co*2+ca*15,sy+si*2+sa*15,sx+co*2,sy+si*2+5);
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle=C.skinS;ctx.lineWidth=0.6;
-  ctx.beginPath();ctx.moveTo(sf[0]-co,sf[1]-si+2);
-  ctx.quadraticCurveTo(sx+co*sWf*0.7+ca*10,sy+si*sWf*0.7+sa*10,sx+co*5+ca*16,sy+si*5+sa*16);ctx.stroke();
-  ctx.fillStyle=C.skinS;ctx.beginPath();ctx.moveTo(sb[0],sb[1]);
-  ctx.quadraticCurveTo(sx-co*sWb-co*3+ca*5,sy-si*sWb-si*3+sa*5,sx-co*sWb*0.3+ca*16,sy-si*sWb*0.3+sa*16);
-  ctx.lineTo(sx-co*3,sy-si*3+5);ctx.closePath();ctx.fill();
-  ctx.strokeStyle=C.contour;ctx.lineWidth=0.8;ctx.stroke();
-}
-
-function drawHand(ctx, x, y, angle) {
-  ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
-  ctx.fillStyle=C.skin; ctx.strokeStyle=C.contour; ctx.lineWidth=0.8;
-  ctx.beginPath(); ctx.ellipse(0,0,5,4.5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle=C.skinS; ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.moveTo(-3,3);ctx.lineTo(2,3);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(-3,1.5);ctx.lineTo(2,1.5);ctx.stroke();
-  ctx.fillStyle=C.skinL;ctx.beginPath();ctx.ellipse(3.5,-2,2.5,2,0.4,0,Math.PI*2);ctx.fill();
-  ctx.restore();
-}
-
-function drawSneaker(ctx, x, y, angle) {
-  ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
-  ctx.fillStyle="#1a1a28";ctx.beginPath();ctx.moveTo(-20,3);ctx.lineTo(8,3);ctx.quadraticCurveTo(12,3,12,0);ctx.lineTo(-20,0);ctx.closePath();ctx.fill();
-  ctx.fillStyle="#e0e0e0";ctx.beginPath();ctx.moveTo(-20,0);ctx.lineTo(11,0);ctx.quadraticCurveTo(13,0,13,-2);ctx.lineTo(-20,-2);ctx.closePath();ctx.fill();
-  ctx.fillStyle="#2a2a3e";ctx.beginPath();ctx.moveTo(-18,-2);ctx.lineTo(10,-2);ctx.quadraticCurveTo(13,-3,12,-7);ctx.lineTo(5,-12);ctx.quadraticCurveTo(-2,-14,-8,-12);ctx.lineTo(-18,-6);ctx.closePath();ctx.fill();ctx.strokeStyle="#3a3a50";ctx.lineWidth=0.8;ctx.stroke();
-  ctx.restore();
-}
-
-function drawBenchFoot(ctx, x, y) {
-  ctx.fillStyle="#2a2a3e";ctx.beginPath();ctx.ellipse(x,y,10,4,0.1,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle="#3a3a50";ctx.lineWidth=0.8;ctx.stroke();
-  ctx.fillStyle=C.skin;ctx.beginPath();ctx.ellipse(x+7,y-2,4,3.5,0.2,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle=C.contour;ctx.lineWidth=0.7;ctx.stroke();
-}
-
-function drawDumbbell(ctx, x, y, angle) {
-  ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
-  ctx.strokeStyle=C.metal;ctx.lineWidth=2.5;ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(-9,0);ctx.lineTo(9,0);ctx.stroke();
-  for(const xo of [-15,10]){
-    const g=ctx.createLinearGradient(xo,-6,xo,6);g.addColorStop(0,"#5ae0f5");g.addColorStop(1,"#2a8fa3");
-    ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(xo,-6,5,12,1);ctx.fill();ctx.strokeStyle="#2a8fa3";ctx.lineWidth=0.5;ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawBench(ctx, x, y) {
-  ctx.strokeStyle="#444458";ctx.lineWidth=3.5;ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(x+6,y+9);ctx.lineTo(x+6,y+65);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(x+60,y+9);ctx.lineTo(x+60,y+65);ctx.stroke();
-  ctx.strokeStyle="#3a3a4a";ctx.lineWidth=2;
-  ctx.beginPath();ctx.moveTo(x+6,y+48);ctx.lineTo(x+60,y+48);ctx.stroke();
-  ctx.fillStyle="#222233";ctx.fillRect(x+1,y+63,10,3);ctx.fillRect(x+55,y+63,10,3);
-  const g=ctx.createLinearGradient(x,y,x,y+10);g.addColorStop(0,"#3a3a48");g.addColorStop(1,"#2a2a36");
-  ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(x-3,y,72,10,3);ctx.fill();
-  ctx.strokeStyle="#4a4a58";ctx.lineWidth=0.8;ctx.stroke();
-  ctx.fillStyle="#42424f";ctx.beginPath();ctx.roundRect(x,y+1,66,3,2);ctx.fill();
-}
-
-function drawKB(ctx, x, y, angle) {
-  ctx.save(); ctx.translate(x,y); ctx.rotate(angle);
-  const g=ctx.createRadialGradient(0,4,2,0,4,10);g.addColorStop(0,"#555");g.addColorStop(1,"#333");
-  ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,5,9,8,0,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle="#666";ctx.lineWidth=1;ctx.stroke();
-  ctx.strokeStyle="#777";ctx.lineWidth=2.5;ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(-6,-2);ctx.quadraticCurveTo(-6,-10,0,-10);ctx.quadraticCurveTo(6,-10,6,-2);ctx.stroke();
-  ctx.restore();
-}
-
-function drawCableMachine(ctx, x, y, h, pulleyY) {
-  ctx.fillStyle="#1a1a25";ctx.beginPath();ctx.roundRect(x,y,16,h,3);ctx.fill();
-  ctx.strokeStyle="#2a2a3a";ctx.lineWidth=1;ctx.stroke();
-  for(let i=0;i<6;i++){ctx.fillStyle=i<3?"#333":"#252530";ctx.fillRect(x+2,y+5+i*12,12,10);}
-  ctx.fillStyle="#555";ctx.beginPath();ctx.arc(x+8,pulleyY,4,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle="#777";ctx.lineWidth=1;ctx.stroke();
-}
-
-function drawCable(ctx, x1,y1,x2,y2) {
-  ctx.strokeStyle="#48dbfb88";ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
-  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.setLineDash([]);
-}
-
-function drawFloor(ctx, w, h) {
-  ctx.fillStyle=C.floor;ctx.fillRect(0,h-22,w,22);
-  ctx.strokeStyle=C.floorLine;ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(0,h-22);ctx.lineTo(w,h-22);ctx.stroke();
-}
-
-function drawShadow(ctx, x, y, rx, ry) {
-  ctx.fillStyle="rgba(0,0,0,0.12)";ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();
-}
-
-function drawLabel(ctx, text, x, y, color) {
-  ctx.font="7.5px 'JetBrains Mono',monospace";ctx.fillStyle=color||"rgba(0,212,170,0.35)";ctx.fillText(text,x,y);
-}
-
-function drawBar(ctx, x1,y1,x2,y2,w) {
-  ctx.strokeStyle=C.metal;ctx.lineWidth=w||4;ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
-}
-
-function drawPullupBar(ctx, x, y, w) {
-  ctx.strokeStyle="#48dbfb";ctx.lineWidth=5;ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+w,y);ctx.stroke();
-  ctx.strokeStyle="#333";ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-10);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(x+w,y);ctx.lineTo(x+w,y-10);ctx.stroke();
-}
-
-function drawBand(ctx, x1,y1,x2,y2) {
-  ctx.strokeStyle="#f39c1288";ctx.lineWidth=3;ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
-}
-
-function drawFoamRoller(ctx, x, y) {
-  ctx.fillStyle="#333348";ctx.beginPath();ctx.ellipse(x,y,12,10,0,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle="#444458";ctx.lineWidth=1;ctx.stroke();
-  ctx.fillStyle="#3a3a50";ctx.beginPath();ctx.ellipse(x,y-2,8,4,0,0,Math.PI*2);ctx.fill();
-}
-
-function drawBox(ctx, x, y, w, h) {
-  ctx.fillStyle="#1a1a28";ctx.beginPath();ctx.roundRect(x,y,w,h,4);ctx.fill();
-  ctx.strokeStyle="#2a2a3a";ctx.lineWidth=1.5;ctx.stroke();
-  ctx.fillStyle="#222233";ctx.beginPath();ctx.roundRect(x+3,y+2,w-6,h*0.3,2);ctx.fill();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// EXERCISE ANIMATION FUNCTIONS (unchanged from Phase 1)
-// ═══════════════════════════════════════════════════════════════════════════
-
-const EXERCISES = {};
-
-function figureFL(ctx, pose, opts = {}) {
-  const { headX, headY, sx, sy, hx, hy, fkx, fky, fax, fay, ffx, ffy,
-    bkx, bky, bax, bay, bfx, bfy,
-    feX, feY, fhX, fhY, beX, beY, bhX, bhY, tLean } = pose;
-  const { noBackLeg, noFrontSneaker, backOnBench, hideArms, flipFoot } = opts;
-
-  drawShadow(ctx, (ffx||fax)+20, ffy||fay+14, 45, 5);
-
-  if (!hideArms && beX != null) {
-    drawLimb(ctx, sx+12,sy+6,beX,beY,7,8,6,C.skinS,C.contour,null);
-    drawLimb(ctx, beX,beY,bhX,bhY,6,6,5,C.skinS,C.contour,null);
-  }
-
-  if (!noBackLeg && bkx != null) {
-    drawLimb(ctx, hx+5,hy+6,bkx,bky,12,13,8,C.skinS,C.contour,C.skinD);
-    drawJoint(ctx,bkx,bky,4);
-    if (bax != null && bay != null) {
-      drawLimb(ctx, bkx,bky,bax,bay,8,8,5,C.skinS,C.contour,null);
-    }
-    if (backOnBench) drawBenchFoot(ctx,bfx,bfy);
-  }
-
-  drawLimb(ctx, hx-4,hy+6,fkx,fky,14,17,11,C.skin,C.contour,C.skinS);
-  drawJoint(ctx,fkx,fky,5.5,true);
-  drawLimb(ctx, fkx,fky,fax,fay,10,12,6,C.skin,C.contour,C.skinS);
-  drawJoint(ctx,fax,fay,3.5);
-  if (!noFrontSneaker) drawSneaker(ctx,ffx||fax-5,ffy||fay+10,flipFoot?Math.PI:0);
-
-  drawJoint(ctx,hx,hy,5.5);
-  drawTorso(ctx,sx,sy,hx,hy);
-  drawJoint(ctx,sx,sy,5);
-
-  if (!hideArms && feX != null) {
-    drawLimb(ctx, sx-12,sy+6,feX,feY,9,10,7,C.skin,C.contour,C.skinS);
-    drawJoint(ctx,feX,feY,3.5);
-    drawLimb(ctx, feX,feY,fhX,fhY,7,7.5,5.5,C.skin,C.contour,null);
-  }
-
-  drawHead(ctx,headX,headY,(tLean||0)*0.3);
-}
-
-EXERCISES["Bulgarian Split Squat"] = {
-  dur: 2800,
-  draw(ctx, w, h, p) {
-    drawFloor(ctx,w,h);
-    const floorY=h-26, bX=250, bY=200;
-    drawBench(ctx,bX,bY);
-    const fkx=lerp(130,124,p),fky=lerp(205,242,p);
-    const hx=lerp(170,164,p),hy=lerp(162,200,p);
-    const tL=lerp(-0.18,-0.24,p),tLen=68;
-    const sx=hx+Math.sin(tL)*tLen,sy=hy-Math.cos(tL)*tLen;
-    const pose={headX:sx+Math.sin(tL)*24,headY:sy-Math.cos(tL)*24,sx,sy,hx,hy,
-      fkx,fky,fax:120+4,fay:floorY-10,ffx:115,ffy:floorY,
-      bkx:lerp(222,215,p),bky:lerp(218,256,p),bfx:bX+28,bfy:bY-1,
-      bax:bX+23,bay:bY+3,
-      feX:sx-5,feY:sy+30,fhX:sx-7,fhY:lerp(sy+54,sy+60,p),
-      beX:sx+7,beY:sy+28,bhX:sx+5,bhY:lerp(sy+52,sy+58,p),tLean:tL};
-    drawMuscleHL(ctx,hx-4,hy+6,fkx,fky,14,17,11,"outer",C.active,C.activeF);
-    const ga=ang(sx,sy,hx,hy),gp=ga+Math.PI/2;
-    ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8;
-    ctx.beginPath();ctx.ellipse(hx-Math.cos(gp)*6,hy-Math.sin(gp)*6-3,9,7,ga+0.3,0,Math.PI*2);ctx.fill();ctx.stroke();
-    if(p>0.2) drawMuscleHL(ctx,hx+5,hy+6,pose.bkx,pose.bky,12,13,8,"inner",C.secondary,C.secondaryF);
-    figureFL(ctx,pose,{backOnBench:true});
-    drawHand(ctx,pose.fhX,pose.fhY,Math.PI/2);drawDumbbell(ctx,pose.fhX,pose.fhY+1,0);
-    drawHand(ctx,pose.bhX,pose.bhY,Math.PI/2);drawDumbbell(ctx,pose.bhX,pose.bhY+1,0);
-    drawLabel(ctx,"quads",fkx+16,fky-18);drawLabel(ctx,"glute",hx-30,hy+2);
-    if(p>0.4){drawLabel(ctx,"hip flexor",pose.bkx-12,pose.bky-24,"rgba(243,156,18,0.3)");drawLabel(ctx,"(stretch)",pose.bkx-9,pose.bky-15,"rgba(243,156,18,0.3)");}
-  }
-};
-
-EXERCISES["Cable Row (seated or standing)"] = { dur: 2400, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const benchY=floorY-50; ctx.fillStyle="#2e2e3c";ctx.beginPath();ctx.roundRect(80,benchY,60,8,3);ctx.fill();ctx.strokeStyle="#4a4a58";ctx.lineWidth=0.8;ctx.stroke(); ctx.strokeStyle="#444";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(90,benchY+8);ctx.lineTo(90,floorY);ctx.stroke();ctx.beginPath();ctx.moveTo(130,benchY+8);ctx.lineTo(130,floorY);ctx.stroke(); drawCableMachine(ctx,w-40,40,floorY-40,benchY-10); const hx=110,hy=benchY-5; const sx=hx-2,sy=hy-55; const handX=lerp(sx+60,sx+10,p),handY=lerp(sy+20,sy+15,p); const elbX=lerp(sx+45,sx+25,p),elbY=lerp(sy+25,sy+12,p); drawCable(ctx,handX,handY,w-32,benchY-10); drawLimb(ctx,hx,hy+10,150,floorY-15,11,10,7,C.skin,C.contour,C.skinS); drawSneaker(ctx,158,floorY,0); drawLimb(ctx,hx,hy,hx,hy+10,10,10,10,C.skin,C.contour,null); drawTorso(ctx,sx,sy,hx,hy); drawJoint(ctx,hx,hy,5);drawJoint(ctx,sx,sy,5); drawMuscleHL(ctx,sx,sy,hx,hy,20,18,12,"inner",C.active,C.activeF); drawLimb(ctx,sx-10,sy+5,elbX,elbY,8,9,7,C.skin,C.contour,C.skinS); drawJoint(ctx,elbX,elbY,3.5); drawLimb(ctx,elbX,elbY,handX,handY,7,7,5,C.skin,C.contour,null); drawHand(ctx,handX,handY,0); drawHead(ctx,sx+Math.sin(-0.1)*22,sy-Math.cos(-0.1)*22,-0.1*0.3); drawLabel(ctx,"lats",hx-35,hy-15);drawLabel(ctx,"rhomboids",sx-45,sy+10); } };
-
-EXERCISES["90/90 Hip Switches"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26, seatY=floorY-8; const hx=150,hy=seatY-35; const sx=hx,sy=hy-55; const rot=lerp(-0.3,0.3,p); const fkx=lerp(110,190,p),fky=seatY-5; const fax=lerp(100,200,p),fay=seatY; const bkx=lerp(190,110,p),bky=seatY-5; const bax=lerp(200,100,p),bay=seatY; drawShadow(ctx,hx,seatY+5,50,4); drawLimb(ctx,hx-5,hy+10,fkx,fky,12,11,8,C.skin,C.contour,C.skinS); drawJoint(ctx,fkx,fky,4); drawLimb(ctx,fkx,fky,fax,fay,8,7,5,C.skin,C.contour,null); drawLimb(ctx,hx+5,hy+10,bkx,bky,12,11,8,C.skinS,C.contour,C.skinD); drawJoint(ctx,bkx,bky,4); drawLimb(ctx,bkx,bky,bax,bay,8,7,5,C.skinS,C.contour,null); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,hy+5,10,7,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy); drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx-10,sy+5,sx-15,sy+35,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+10,sy+5,sx+15,sy+35,8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"hip rotators",hx+15,hy+8); } };
-
-EXERCISES["Band Pull-Aparts"] = { dur: 2200, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+5,hx-15,floorY-10,12,11,7,C.skin,C.contour,C.skinS); drawSneaker(ctx,hx-20,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+15,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+10,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy); drawJoint(ctx,sx,sy,5); const armSpread=lerp(20,65,p); const lhX=sx-armSpread,lhY=sy+5,rhX=sx+armSpread,rhY=sy+5; const leX=sx-armSpread*0.5,leY=sy+3,reX=sx+armSpread*0.5,reY=sy+3; drawLimb(ctx,sx-14,sy+4,leX,leY,8,8,6,C.skin,C.contour,null); drawJoint(ctx,leX,leY,3); drawLimb(ctx,leX,leY,lhX,lhY,6,6,5,C.skin,C.contour,null); drawLimb(ctx,sx+14,sy+4,reX,reY,8,8,6,C.skinS,C.contour,null); drawJoint(ctx,reX,reY,3); drawLimb(ctx,reX,reY,rhX,rhY,6,6,5,C.skinS,C.contour,null); drawHand(ctx,lhX,lhY,0);drawHand(ctx,rhX,rhY,0); drawBand(ctx,lhX,lhY,rhX,rhY); drawMuscleHL(ctx,sx-14,sy+4,leX,leY,8,8,6,"outer",C.active,C.activeF); drawMuscleHL(ctx,sx+14,sy+4,reX,reY,8,8,6,"outer",C.active,C.activeF); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"rear delts",sx-50,sy-8);drawLabel(ctx,"rhomboids",sx+15,sy+20); } };
-
-EXERCISES["Cat-Cow + Thread the Needle"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const spineArc=lerp(-12,12,p); const hx=220,hy=floorY-50; const sx=120,sy=floorY-50+spineArc; const headX=sx-30,headY=sy-15+spineArc*0.5; drawShadow(ctx,(sx+hx)/2,floorY+4,60,5); drawLimb(ctx,hx,hy+5,hx+10,floorY-8,11,10,7,C.skin,C.contour,null); drawLimb(ctx,hx+10,floorY-8,hx+15,floorY,7,6,5,C.skin,C.contour,null); drawLimb(ctx,sx,sy+5,sx-5,floorY-8,8,8,6,C.skin,C.contour,null); ctx.fillStyle=C.skin;ctx.strokeStyle=C.contour;ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(sx+15,sy-12+spineArc*0.3); ctx.quadraticCurveTo((sx+hx)/2,sy-18+spineArc*0.8,hx-10,hy-12); ctx.quadraticCurveTo((sx+hx)/2,hy+5+spineArc*0.3,sx+15,sy+8); ctx.closePath();ctx.fill();ctx.stroke(); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse((sx+hx)/2,sy-5+spineArc*0.5,20,8,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawJoint(ctx,hx,hy,5);drawJoint(ctx,sx,sy,5); drawHead(ctx,headX,headY,lerp(0.2,-0.2,p)); drawLabel(ctx,"t-spine",(sx+hx)/2-15,sy-20+spineArc*0.5); } };
-
-EXERCISES["Goblet Squat"] = { dur: 2800, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hx=160,hy=lerp(floorY-95,floorY-55,p); const sx=hx+lerp(0,-3,p),sy=hy-lerp(65,55,p); const fkx=lerp(140,130,p),fky=lerp(floorY-50,floorY-25,p); const fax=135,fay=floorY-10; const bkx=lerp(180,190,p),bky=lerp(floorY-50,floorY-25,p); drawShadow(ctx,hx,floorY+4,40,5); drawLimb(ctx,hx-5,hy+6,fkx,fky,13,16,10,C.skin,C.contour,C.skinS); drawMuscleHL(ctx,hx-5,hy+6,fkx,fky,13,16,10,"outer",C.active,C.activeF); drawJoint(ctx,fkx,fky,5,true); drawLimb(ctx,fkx,fky,fax,fay,10,11,6,C.skin,C.contour,null); drawSneaker(ctx,130,floorY,0); drawLimb(ctx,hx+5,hy+6,bkx,bky,13,16,10,C.skinS,C.contour,null); drawJoint(ctx,bkx,bky,5); drawLimb(ctx,bkx,bky,bkx+5,floorY-10,10,11,6,C.skinS,C.contour,null); drawSneaker(ctx,bkx,floorY,Math.PI); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,hy+3,10,7,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const kbY=sy+lerp(12,22,p); drawKB(ctx,sx,kbY,0); drawLimb(ctx,sx-14,sy+5,sx-10,kbY-5,8,8,6,C.skin,C.contour,null); drawLimb(ctx,sx+14,sy+5,sx+10,kbY-5,8,7,6,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"quads",fkx+12,fky-15);drawLabel(ctx,"glutes/core",hx+15,hy+10); } };
-
-EXERCISES["Face Pulls"] = { dur: 2400, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; drawCableMachine(ctx,w-40,40,floorY-40,80); const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+5,hx-12,floorY-10,12,11,7,C.skin,C.contour,null); drawSneaker(ctx,hx-17,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+12,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+7,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const spread=lerp(10,45,p),pullBack=lerp(30,5,p); const lhX=sx-spread,lhY=sy+pullBack-20,rhX=sx+spread,rhY=sy+pullBack-20; const leX=sx-spread*0.5,leY=sy+pullBack*0.5-10,reX=sx+spread*0.5,reY=sy+pullBack*0.5-10; drawCable(ctx,lhX,lhY,w-32,80);drawCable(ctx,rhX,rhY,w-32,80); drawLimb(ctx,sx-14,sy+4,leX,leY,8,9,7,C.skin,C.contour,null); drawJoint(ctx,leX,leY,3.5); drawLimb(ctx,leX,leY,lhX,lhY,7,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+14,sy+4,reX,reY,8,9,7,C.skinS,C.contour,null); drawJoint(ctx,reX,reY,3.5); drawLimb(ctx,reX,reY,rhX,rhY,7,7,5,C.skinS,C.contour,null); drawHand(ctx,lhX,lhY,0);drawHand(ctx,rhX,rhY,0); drawMuscleHL(ctx,sx-14,sy+4,leX,leY,8,9,7,"outer",C.active,C.activeF); drawMuscleHL(ctx,sx+14,sy+4,reX,reY,8,9,7,"outer",C.active,C.activeF); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"rear delts",sx-55,sy-8);drawLabel(ctx,"rotator cuff",sx+15,sy-8); } };
-
-EXERCISES["Dead Hang"] = { dur: 3000, draw(ctx, w, h, p) { drawPullupBar(ctx,80,25,120); const sway=Math.sin(p*Math.PI*2)*5; const sx=140+sway,sy=55; const hx=140+sway,hy=sy+65; drawLimb(ctx,sx-15,sy,120,25,7,6,5,C.skin,C.contour,null); drawLimb(ctx,sx+15,sy,160,25,7,6,5,C.skinS,C.contour,null); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,hx,hy,5);drawJoint(ctx,sx,sy,5); drawLimb(ctx,hx-5,hy+5,hx-8,hy+45,12,11,8,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-8,hy+45,4); drawLimb(ctx,hx-8,hy+45,hx-10,hy+75,9,9,6,C.skin,C.contour,null); drawLimb(ctx,hx+5,hy+5,hx+8,hy+45,12,11,8,C.skinS,C.contour,null); drawJoint(ctx,hx+8,hy+45,4); drawLimb(ctx,hx+8,hy+45,hx+10,hy+75,9,9,6,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(sx,sy+3,8,5,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawLabel(ctx,"shoulders",sx+20,sy);drawLabel(ctx,"grip",sx-40,sy+15); } };
-
-EXERCISES["Supine Hip Flexor Stretch"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const benchY=floorY-35; ctx.fillStyle="#2e2e3c";ctx.beginPath();ctx.roundRect(60,benchY,180,10,3);ctx.fill();ctx.strokeStyle="#4a4a58";ctx.lineWidth=0.8;ctx.stroke(); const sink=lerp(0,15,p); const hx=150,hy=benchY-10; drawLimb(ctx,hx-5,hy+5,120,benchY-8,14,14,10,C.skin,C.contour,C.skinS); drawJoint(ctx,120,benchY-8,5,true); drawLimb(ctx,120,benchY-8,100,benchY-15,10,10,7,C.skin,C.contour,null); drawLimb(ctx,hx+5,hy+5,hx+25,benchY+sink,13,13,9,C.skinS,C.contour,C.skinD); drawMuscleHL(ctx,hx+5,hy+5,hx+25,benchY+sink,13,13,9,"outer",C.secondary,C.secondaryF); drawJoint(ctx,hx+25,benchY+sink,4); drawLimb(ctx,hx+25,benchY+sink,hx+20,benchY+sink+25,9,8,6,C.skinS,C.contour,null); drawLimb(ctx,hx,hy,hx-30,hy-5,16,14,12,C.skin,C.contour,C.skinS); const sx=hx-30,sy=hy-5; drawJoint(ctx,hx,hy,5.5); drawJoint(ctx,sx,sy,5); drawHead(ctx,70,benchY-15,Math.PI/2-0.2); drawLabel(ctx,"hip flexor",hx+30,benchY+sink-10,"rgba(243,156,18,0.35)"); } };
-
-EXERCISES["Hip CARs (Controlled Articular Rotations)"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,30,4); drawLimb(ctx,hx+8,hy+5,hx+12,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+7,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const ca=p*Math.PI*2-Math.PI/2,legR=45; const kx=hx-8+Math.cos(ca)*legR,ky=hy+5+Math.sin(ca)*legR; drawLimb(ctx,hx-8,hy+5,kx,ky,12,12,8,C.skin,C.contour,C.skinS); drawJoint(ctx,kx,ky,5,true); const ax=kx+Math.cos(ca+Math.PI/2)*25,ay=ky+Math.sin(ca+Math.PI/2)*25; drawLimb(ctx,kx,ky,ax,ay,9,9,6,C.skin,C.contour,null); ctx.strokeStyle="rgba(0,212,170,0.12)";ctx.lineWidth=1;ctx.setLineDash([4,5]); ctx.beginPath();ctx.ellipse(hx-8,hy+5,legR,legR,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx-5,hy+3,8,6,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawLimb(ctx,sx-12,sy+5,sx-18,sy+35,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,sx+18,sy+35,8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"hip rotators",hx+15,hy+8); } };
-
-EXERCISES["Glute Bridges"] = { dur: 2400, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const lift=lerp(0,25,p); const hx=160,hy=floorY-20-lift; const sx=hx-50,sy=floorY-15; drawShadow(ctx,hx,floorY+4,50,4); drawLimb(ctx,sx,sy,hx,hy,14,14,12,C.skin,C.contour,C.skinS); drawLimb(ctx,hx-5,hy+5,hx-25,floorY-5,13,14,9,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-25,floorY-5,4,true); drawLimb(ctx,hx-25,floorY-5,hx-40,floorY,8,8,6,C.skin,C.contour,null); drawLimb(ctx,hx+5,hy+5,hx+25,floorY-5,13,14,9,C.skinS,C.contour,null); drawJoint(ctx,hx+25,floorY-5,4); drawLimb(ctx,hx+25,floorY-5,hx+40,floorY,8,8,6,C.skinS,C.contour,null); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,hy+3,10,7,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawJoint(ctx,hx,hy,5.5);drawJoint(ctx,sx,sy,5); drawHead(ctx,sx-20,sy-10,Math.PI/2-0.3); drawLabel(ctx,"glutes",hx+15,hy); } };
-
-EXERCISES["Lunge + Reach Rotation"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const rotate=Math.sin(p*Math.PI)*0.5; const hx=170,hy=floorY-55; const sx=hx+Math.sin(-0.15+rotate*0.3)*65,sy=hy-Math.cos(-0.15)*65; drawShadow(ctx,hx,floorY+4,40,5); drawLimb(ctx,hx-8,hy+6,140,floorY-20,14,15,10,C.skin,C.contour,C.skinS); drawJoint(ctx,140,floorY-20,5,true); drawLimb(ctx,140,floorY-20,130,floorY-8,10,10,6,C.skin,C.contour,null); drawSneaker(ctx,125,floorY,0); drawLimb(ctx,hx+8,hy+6,200,floorY-5,13,14,9,C.skinS,C.contour,C.skinD); drawJoint(ctx,200,floorY-5,4); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const reachAngle=-Math.PI/2+rotate*2; const reachX=sx+Math.cos(reachAngle)*45,reachY=sy+Math.sin(reachAngle)*45; drawLimb(ctx,sx-12,sy+5,sx-20,sy+35,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,reachX,reachY,8,7,5,C.skinS,C.contour,null); drawHand(ctx,reachX,reachY,reachAngle); drawHead(ctx,sx+Math.sin(-0.15+rotate*0.3)*22,sy-Math.cos(-0.15)*22,rotate*0.4); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,(sy+hy)/2,9,16,ang(sx,sy,hx,hy),0,Math.PI*2);ctx.fill();ctx.stroke(); drawLabel(ctx,"t-spine",sx+25,sy-5);drawLabel(ctx,"hip flexor",hx+20,hy+15,"rgba(243,156,18,0.3)"); } };
-
-EXERCISES["Kettlebell Swings"] = { dur: 2400, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; let kbAngle,hipHinge,kbX,kbY; if(p<0.5){const t=p/0.5;hipHinge=lerp(0.4,0,easeInOut(t));const swA=lerp(Math.PI*0.7,-Math.PI*0.3,easeInOut(t));kbX=160+Math.cos(swA)*55;kbY=floorY-80+Math.sin(swA)*55;kbAngle=swA;} else{const t=(p-0.5)/0.5;hipHinge=lerp(0,0.4,easeInOut(t));const swA=lerp(-Math.PI*0.3,Math.PI*0.7,easeInOut(t));kbX=160+Math.cos(swA)*55;kbY=floorY-80+Math.sin(swA)*55;kbAngle=swA;} const hx=160,hy=floorY-60-hipHinge*10; const sx=hx+Math.sin(-0.05-hipHinge)*65,sy=hy-Math.cos(-0.05-hipHinge)*65; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+5,hx-15,floorY-10,12,12,8,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-15,floorY-10,5,true); drawLimb(ctx,hx-15,floorY-10,hx-18,floorY-2,9,9,6,C.skin,C.contour,null); drawSneaker(ctx,hx-23,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+15,floorY-10,12,12,8,C.skinS,C.contour,null); drawJoint(ctx,hx+15,floorY-10,5); drawLimb(ctx,hx+15,floorY-10,hx+18,floorY-2,9,9,6,C.skinS,C.contour,null); drawSneaker(ctx,hx+13,floorY,Math.PI); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,hy+3,10,7,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx-12,sy+5,kbX-5,kbY,8,8,6,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,kbX+5,kbY,8,7,6,C.skinS,C.contour,null); drawKB(ctx,kbX,kbY,kbAngle); drawHead(ctx,sx+Math.sin(-0.05-hipHinge)*22,sy-Math.cos(-0.05-hipHinge)*22,(-0.05-hipHinge)*0.3); drawLabel(ctx,"glutes/hips",hx+20,hy); } };
-
-EXERCISES["Single-Leg Romanian Deadlift (DB)"] = { dur: 2800, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hinge=lerp(0,0.8,p); const hx=160,hy=floorY-60; const sx=hx+Math.sin(-hinge)*65,sy=hy-Math.cos(-hinge)*65; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-5,hy+5,hx-8,floorY-15,12,12,8,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-8,floorY-15,5,true); drawLimb(ctx,hx-8,floorY-15,hx-10,floorY-5,9,9,6,C.skin,C.contour,null); drawSneaker(ctx,hx-15,floorY,0); const backLegAngle=-Math.PI/2+hinge*1.2; const bkx=hx+5+Math.cos(backLegAngle)*40,bky=hy+5+Math.sin(backLegAngle)*40; drawLimb(ctx,hx+5,hy+5,bkx,bky,12,11,8,C.skinS,C.contour,null); const bax=bkx+Math.cos(backLegAngle)*30,bay=bky+Math.sin(backLegAngle)*30; drawLimb(ctx,bkx,bky,bax,bay,8,8,6,C.skinS,C.contour,null); drawMuscleHL(ctx,hx-5,hy+5,hx-8,floorY-15,12,12,8,"inner",C.active,C.activeF); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const dbY=sy+lerp(25,50,p); drawLimb(ctx,sx+12,sy+5,sx+10,dbY-10,8,7,5,C.skinS,C.contour,null); drawHand(ctx,sx+10,dbY-5,Math.PI/2);drawDumbbell(ctx,sx+10,dbY-4,0); drawLimb(ctx,sx-12,sy+5,sx-15,sy+30,8,7,5,C.skin,C.contour,null); drawHead(ctx,sx+Math.sin(-hinge)*22,sy-Math.cos(-hinge)*22,(-hinge)*0.3); drawLabel(ctx,"hamstrings",hx-40,hy+15);drawLabel(ctx,"glute",hx+15,hy); } };
-
-EXERCISES["Box Jumps"] = { dur: 2800, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; drawBox(ctx,190,floorY-45,70,45); let figY,onBox; if(p<0.3){const t=p/0.3;figY=floorY-30-Math.sin(t*Math.PI)*80;onBox=false;} else if(p<0.6){figY=floorY-75;onBox=true;} else{const t=(p-0.6)/0.4;figY=lerp(floorY-75,floorY-30,t);onBox=false;} const hx=onBox?225:150,hy=figY; const sx=hx,sy=hy-60; drawShadow(ctx,hx,onBox?floorY-45+4:floorY+4,35,4); const kneeBend=onBox?0.1:0.3; drawLimb(ctx,hx-8,hy+5,hx-12,hy+35,12,12,8,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-12,hy+35,5,true); drawLimb(ctx,hx-12,hy+35,hx-10,onBox?floorY-45:floorY-5,9,9,6,C.skin,C.contour,null); if(!onBox)drawSneaker(ctx,hx-15,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+12,hy+35,12,12,8,C.skinS,C.contour,null); drawJoint(ctx,hx+12,hy+35,5); drawLimb(ctx,hx+12,hy+35,hx+10,onBox?floorY-45:floorY-5,9,9,6,C.skinS,C.contour,null); if(!onBox)drawSneaker(ctx,hx+5,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const armAngle=onBox?0.3:-0.5; drawLimb(ctx,sx-12,sy+5,sx-20,sy+30+armAngle*20,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,sx+20,sy+30+armAngle*20,8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"explosive power",hx-30,hy-15); } };
-
-EXERCISES["Pallof Press (cable)"] = { dur: 2600, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; drawCableMachine(ctx,10,40,floorY-40,80); const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+5,hx-12,floorY-10,12,11,7,C.skin,C.contour,null); drawSneaker(ctx,hx-17,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+12,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+7,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,(sy+hy)/2,9,16,ang(sx,sy,hx,hy),0,Math.PI*2);ctx.fill();ctx.stroke(); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const pressX=lerp(sx+10,sx+50,p),pressY=sy+15; drawLimb(ctx,sx-12,sy+5,pressX-5,pressY,8,8,6,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,pressX+5,pressY,8,7,6,C.skinS,C.contour,null); drawHand(ctx,pressX,pressY,0); drawCable(ctx,pressX,pressY,18,80); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"anti-rotation",hx+20,(sy+hy)/2); } };
-
-EXERCISES["Reverse Lunge to Knee Drive"] = { dur: 2800, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; let lx,ly,rx,ry,driveKnee; if(p<0.5){const t=p/0.5;lx=lerp(150,150,t);ly=lerp(floorY-60,floorY-60,t);rx=lerp(200,200,t);ry=lerp(floorY-5,floorY-5,t);driveKnee=0;} else{const t=(p-0.5)/0.5;driveKnee=Math.sin(t*Math.PI);rx=200;ry=lerp(floorY-5,floorY-60,driveKnee);} const hx=160,hy=floorY-55; const sx=hx,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+6,140,floorY-20,14,15,10,C.skin,C.contour,C.skinS); drawJoint(ctx,140,floorY-20,5,true); drawLimb(ctx,140,floorY-20,135,floorY-8,10,10,6,C.skin,C.contour,null); drawSneaker(ctx,130,floorY,0); if(driveKnee<0.5){ drawLimb(ctx,hx+8,hy+6,rx-20,ry,13,13,9,C.skinS,C.contour,C.skinD); drawJoint(ctx,rx-20,ry,4); drawLimb(ctx,rx-20,ry,rx,ry+15,9,8,6,C.skinS,C.contour,null); } else { drawLimb(ctx,hx+8,hy+6,hx+10,hy-10,13,13,9,C.skinS,C.contour,null); drawJoint(ctx,hx+10,hy-10,4); drawLimb(ctx,hx+10,hy-10,hx+5,hy+15,9,8,6,C.skinS,C.contour,null); } drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx-12,sy+5,sx-18,sy+35,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,sx+18,sy+35,8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"glutes/quads",hx-35,hy-10); } };
-
-EXERCISES["TRX or Cable Y-T-W Raises"] = { dur: 3600, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+5,hx-12,floorY-10,12,11,7,C.skin,C.contour,null); drawSneaker(ctx,hx-17,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+12,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+7,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); let lx,ly,rx,ry,dirLabel; if(p<0.33){const t=p/0.33;lx=sx-30;ly=sy-lerp(10,50,t);rx=sx+30;ry=sy-lerp(10,50,t);dirLabel="Y";} else if(p<0.66){const t=(p-0.33)/0.33;lx=sx-lerp(30,55,t);ly=sy;rx=sx+lerp(30,55,t);ry=sy;dirLabel="T";} else{const t=(p-0.66)/0.34;lx=sx-lerp(25,35,t);ly=sy+lerp(5,-10,t);rx=sx+lerp(25,35,t);ry=sy+lerp(5,-10,t);dirLabel="W";} drawLimb(ctx,sx-14,sy+4,(sx+lx)/2,(sy+ly)/2,8,8,6,C.skin,C.contour,null); drawLimb(ctx,(sx+lx)/2,(sy+ly)/2,lx,ly,6,6,5,C.skin,C.contour,null); drawHand(ctx,lx,ly,0); drawLimb(ctx,sx+14,sy+4,(sx+rx)/2,(sy+ry)/2,8,7,6,C.skinS,C.contour,null); drawLimb(ctx,(sx+rx)/2,(sy+ry)/2,rx,ry,6,6,5,C.skinS,C.contour,null); drawHand(ctx,rx,ry,0); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.arc(sx-14,sy+4,5,0,Math.PI*2);ctx.fill();ctx.stroke(); ctx.beginPath();ctx.arc(sx+14,sy+4,5,0,Math.PI*2);ctx.fill();ctx.stroke(); drawHead(ctx,sx,sy-22,0); ctx.font="10px 'JetBrains Mono',monospace";ctx.fillStyle="rgba(0,212,170,0.4)";ctx.fillText(dirLabel,lx-10,ly-8); drawLabel(ctx,"stabilizers",hx+15,hy+8); } };
-
-EXERCISES["Single-Leg Balance Reach (3-way)"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,30,4); drawLimb(ctx,hx-5,hy+5,hx-8,floorY-15,12,12,8,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-8,floorY-15,5,true); drawLimb(ctx,hx-8,floorY-15,hx-10,floorY-5,9,9,6,C.skin,C.contour,null); drawSneaker(ctx,hx-15,floorY,0); let reachX,reachY,dirLabel; if(p<0.33){const t=p/0.33;reachX=hx+5;reachY=hy+5+t*35;dirLabel="FWD";} else if(p<0.66){const t=(p-0.33)/0.33;reachX=hx+5+t*40;reachY=hy+5+20;dirLabel="LAT";} else{const t=(p-0.66)/0.34;reachX=hx+5-t*30;reachY=hy+5+t*30;dirLabel="BACK";} drawLimb(ctx,hx+5,hy+5,reachX,reachY,12,11,8,C.skinS,C.contour,null); drawJoint(ctx,reachX,reachY,4); drawLimb(ctx,reachX,reachY,reachX+5,reachY+20,8,8,6,C.skinS,C.contour,null); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx-12,sy+5,sx-25,sy+25,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,sx+25,sy+25,8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); ctx.font="10px 'JetBrains Mono',monospace";ctx.fillStyle="rgba(0,212,170,0.4)";ctx.fillText(dirLabel,reachX+10,reachY-8); drawLabel(ctx,"stabilizers",hx+15,hy+8); } };
-
-EXERCISES["Pigeon Stretch"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const sinkDown=lerp(0,15,p); const hx=160,hy=floorY-30-sinkDown; drawShadow(ctx,hx,floorY+4,55,5); drawLimb(ctx,hx-10,hy+10,hx-50,hy+15,12,11,7,C.skin,C.contour,null); drawJoint(ctx,hx-50,hy+15,4); drawLimb(ctx,hx-50,hy+15,hx-70,hy+10,8,7,5,C.skin,C.contour,null); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx-5,hy+8,12,8,0.2,0,Math.PI*2);ctx.fill();ctx.stroke(); drawLimb(ctx,hx+10,hy+5,hx+70,hy+15,12,11,7,C.skinS,C.contour,null); drawLimb(ctx,hx+70,hy+15,hx+90,hy+12,8,7,5,C.skinS,C.contour,null); const sx=hx-lerp(15,25,p),sy=hy-lerp(50,35,p); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx-10,sy+5,sx-25,sy+lerp(30,40,p),8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+10,sy+5,sx+5,sy+lerp(30,40,p),8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx-15,sy-18,lerp(-0.3,-0.5,p)); drawLabel(ctx,"glute/piriformis",hx+10,hy-5);drawLabel(ctx,"ext. rotators",hx+10,hy+5); } };
-
-EXERCISES["Foam Roll: T-spine + Lats"] = { dur: 2800, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const rollX=lerp(140,200,p); drawFoamRoller(ctx,rollX,floorY-40); const headX=100,headY=floorY-48; drawLimb(ctx,120,floorY-45,rollX-5,floorY-48,16,15,14,C.skin,C.contour,C.skinS); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(rollX,floorY-48,15,8,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawLimb(ctx,rollX+20,floorY-40,rollX+35,floorY-20,12,12,8,C.skin,C.contour,null); drawLimb(ctx,rollX+35,floorY-20,rollX+30,floorY-5,9,9,6,C.skin,C.contour,null); drawSneaker(ctx,rollX+25,floorY,0); drawLimb(ctx,120,floorY-48,110,floorY-55,7,6,5,C.skin,C.contour,null); drawHead(ctx,headX,headY,-Math.PI/2+0.2); drawLabel(ctx,"t-spine",rollX-15,floorY-60); } };
-
-EXERCISES["Shoulder CARs"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,30,4); drawLimb(ctx,hx-8,hy+5,hx-12,floorY-10,12,11,7,C.skin,C.contour,null); drawSneaker(ctx,hx-17,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+12,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+7,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx+12,sy+5,sx+18,sy+40,8,7,5,C.skinS,C.contour,null); const ca=p*Math.PI*2-Math.PI/2,armR=45; const ahx=sx-12+Math.cos(ca)*armR,ahy=sy+5+Math.sin(ca)*armR; drawLimb(ctx,sx-12,sy+5,ahx,ahy,8,8,6,C.skin,C.contour,null); drawHand(ctx,ahx,ahy,ca); ctx.strokeStyle="rgba(0,212,170,0.12)";ctx.lineWidth=1;ctx.setLineDash([4,5]); ctx.beginPath();ctx.ellipse(sx-12,sy+5,armR,armR,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.arc(sx-12,sy+3,6,0,Math.PI*2);ctx.fill();ctx.stroke(); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"shoulder complex",sx-55,sy-8); } };
-
-EXERCISES["Deep Squat Hold + Shift"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const shiftX=Math.sin(p*Math.PI*2)*15; const hx=160+shiftX,hy=floorY-40; const sx=hx,sy=hy-50; drawShadow(ctx,hx,floorY+4,40,5); drawLimb(ctx,hx-8,hy+6,hx-20+shiftX*0.3,hy+25,14,16,10,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-20+shiftX*0.3,hy+25,5,true); drawLimb(ctx,hx-20+shiftX*0.3,hy+25,hx-22,floorY-10,10,11,6,C.skin,C.contour,null); drawSneaker(ctx,hx-27,floorY,0); drawLimb(ctx,hx+8,hy+6,hx+20+shiftX*0.3,hy+25,14,16,10,C.skinS,C.contour,null); drawJoint(ctx,hx+20+shiftX*0.3,hy+25,5); drawLimb(ctx,hx+20+shiftX*0.3,hy+25,hx+22,floorY-10,10,11,6,C.skinS,C.contour,null); drawSneaker(ctx,hx+17,floorY,Math.PI); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,hy+3,10,7,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx-12,sy+5,sx-15,sy+30,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,sx+15,sy+30,8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"hips/ankles",hx+25,hy+10); } };
-
-EXERCISES["Landmine Press (single arm)"] = { dur: 2400, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hx=180,hy=floorY-60,sx=180,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); ctx.fillStyle="#444";ctx.beginPath();ctx.arc(50,floorY-5,6,0,Math.PI*2);ctx.fill(); ctx.strokeStyle="#555";ctx.lineWidth=1;ctx.stroke(); const pressY=sy-lerp(5,35,p); drawBar(ctx,50,floorY-5,sx-15,pressY,4); drawLimb(ctx,hx-8,hy+5,hx-15,floorY-10,12,11,7,C.skin,C.contour,null); drawSneaker(ctx,hx-20,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+10,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+5,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,(sy+hy)/2,9,15,ang(sx,sy,hx,hy),0,Math.PI*2);ctx.fill();ctx.stroke(); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx-12,sy+5,sx-15,pressY+10,8,9,7,C.skin,C.contour,null); drawLimb(ctx,sx-15,pressY+10,sx-15,pressY,7,7,5,C.skin,C.contour,null); drawHand(ctx,sx-15,pressY,0); drawMuscleHL(ctx,sx-12,sy+5,sx-15,pressY+10,8,9,7,"outer",C.active,C.activeF); drawLimb(ctx,sx+12,sy+5,sx+18,sy+35,8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"delts/core",sx-55,sy); } };
-
-EXERCISES["Front Squat (DB or Goblet)"] = EXERCISES["Goblet Squat"];
-
-EXERCISES["Push-Up to Rotation (T-Push-Up)"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; let armBend,rotation; if(p<0.4){const t=p/0.4;armBend=Math.sin(t*Math.PI);rotation=0;} else if(p<0.7){const t=(p-0.4)/0.3;armBend=0;rotation=easeInOut(t);} else{const t=(p-0.7)/0.3;armBend=0;rotation=1-easeInOut(t);} const bodyY=floorY-30-armBend*15; const hx=200,hy=bodyY,sx=100,sy=bodyY+rotation*-20; drawShadow(ctx,(sx+hx)/2,floorY+4,55,4); drawLimb(ctx,sx,sy,hx,hy,16,15,13,C.skin,C.contour,C.skinS); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse((sx+hx)/2,(sy+hy)/2,15,8,ang(sx,sy,hx,hy),0,Math.PI*2);ctx.fill();ctx.stroke(); drawLimb(ctx,hx,hy+5,hx+30,hy+5,11,10,7,C.skin,C.contour,null); drawLimb(ctx,hx+30,hy+5,hx+50,floorY-8,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx,sy+5,sx,floorY-12-armBend*10,8,8,6,C.skin,C.contour,null); drawHand(ctx,sx,floorY-8,0); const rotArmX=sx+rotation*20,rotArmY=sy-rotation*45; drawLimb(ctx,sx,sy+5,rotArmX,rotArmY,8,7,5,C.skin,C.contour,null); drawHand(ctx,rotArmX,rotArmY,0); drawHead(ctx,sx-15,sy-12+rotation*-5,-0.3+rotation*0.3); drawLabel(ctx,"chest/core",(sx+hx)/2-20,sy-15); } };
-
-EXERCISES["Cable Low-to-High Chop"] = { dur: 2600, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; drawCableMachine(ctx,10,40,floorY-40,floorY-20); const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+5,hx-12,floorY-10,12,11,7,C.skin,C.contour,null); drawSneaker(ctx,hx-17,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+12,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+7,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,(sy+hy)/2,10,16,ang(sx,sy,hx,hy),0,Math.PI*2);ctx.fill();ctx.stroke(); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const handX=lerp(sx-40,sx+30,p),handY=lerp(hy+10,sy-30,p); drawLimb(ctx,sx-12,sy+5,handX-5,handY+10,8,8,6,C.skin,C.contour,null); drawLimb(ctx,handX-5,handY+10,handX,handY,6,6,5,C.skin,C.contour,null); drawHand(ctx,handX,handY,0); drawCable(ctx,handX,handY,18,floorY-20); drawHead(ctx,sx,sy-22,lerp(-0.1,0.1,p)); drawLabel(ctx,"obliques",hx+15,(sy+hy)/2); } };
-
-EXERCISES["Farmer Carry"] = { dur: 2400, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const walkCycle=p*Math.PI*4; const stepL=Math.sin(walkCycle)*8,stepR=Math.sin(walkCycle+Math.PI)*8; const hx=160,hy=floorY-85,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); const lfky=floorY-40+stepL*0.5,rfky=floorY-40+stepR*0.5; drawLimb(ctx,hx-8,hy+5,hx-12,lfky,12,12,8,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-12,lfky,5,true); drawLimb(ctx,hx-12,lfky,hx-10,floorY-10+stepL,9,10,6,C.skin,C.contour,null); drawSneaker(ctx,hx-15,floorY+stepL,0); drawLimb(ctx,hx+8,hy+5,hx+12,rfky,12,12,8,C.skinS,C.contour,null); drawJoint(ctx,hx+12,rfky,5); drawLimb(ctx,hx+12,rfky,hx+10,floorY-10+stepR,9,10,6,C.skinS,C.contour,null); drawSneaker(ctx,hx+5,floorY+stepR,Math.PI); drawJoint(ctx,hx,hy,5.5); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(sx,(sy+hy)/2,9,18,ang(sx,sy,hx,hy),0,Math.PI*2);ctx.fill();ctx.stroke(); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const handY=sy+55; drawLimb(ctx,sx-14,sy+5,sx-16,sy+30,8,7,6,C.skin,C.contour,null); drawLimb(ctx,sx-16,sy+30,sx-16,handY,6,6,5,C.skin,C.contour,null); drawHand(ctx,sx-16,handY,Math.PI/2);drawDumbbell(ctx,sx-16,handY+1,0); drawLimb(ctx,sx+14,sy+5,sx+16,sy+30,8,7,6,C.skinS,C.contour,null); drawLimb(ctx,sx+16,sy+30,sx+16,handY,6,6,5,C.skinS,C.contour,null); drawHand(ctx,sx+16,handY,Math.PI/2);drawDumbbell(ctx,sx+16,handY+1,0); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"grip/core",sx+25,sy+25);drawLabel(ctx,"traps",sx-40,sy); } };
-
-EXERCISES["Band External Rotations"] = { dur: 2200, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const hx=160,hy=floorY-60,sx=160,sy=hy-60; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+5,hx-12,floorY-10,12,11,7,C.skin,C.contour,null); drawSneaker(ctx,hx-17,floorY,0); drawLimb(ctx,hx+8,hy+5,hx+12,floorY-10,12,11,7,C.skinS,C.contour,null); drawSneaker(ctx,hx+7,floorY,Math.PI); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const rot=lerp(0,35,p); const leX=sx-12,leY=sy+20,reX=sx+12,reY=sy+20; drawLimb(ctx,sx-14,sy+4,leX,leY,8,7,6,C.skin,C.contour,null); drawJoint(ctx,leX,leY,3); drawLimb(ctx,leX,leY,leX-rot,leY,6,6,5,C.skin,C.contour,null); drawHand(ctx,leX-rot,leY,0); drawLimb(ctx,sx+14,sy+4,reX,reY,8,7,6,C.skinS,C.contour,null); drawJoint(ctx,reX,reY,3); drawLimb(ctx,reX,reY,reX+rot,reY,6,6,5,C.skinS,C.contour,null); drawHand(ctx,reX+rot,reY,0); drawBand(ctx,leX-rot,leY,reX+rot,reY); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.arc(sx-14,sy+4,5,0,Math.PI*2);ctx.fill();ctx.stroke(); ctx.beginPath();ctx.arc(sx+14,sy+4,5,0,Math.PI*2);ctx.fill();ctx.stroke(); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"rotator cuff",sx-50,sy-8); } };
-
-EXERCISES["Hanging Leg Raises (or knee tucks)"] = { dur: 2600, draw(ctx, w, h, p) { drawPullupBar(ctx,80,25,120); const sx=140,sy=55; const hx=140,hy=sy+65; drawLimb(ctx,sx-15,sy,120,25,7,6,5,C.skin,C.contour,null); drawLimb(ctx,sx+15,sy,160,25,7,6,5,C.skinS,C.contour,null); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,hx,hy,5);drawJoint(ctx,sx,sy,5); const legAngle=lerp(0.1,-0.7,p); const kx=hx+Math.cos(legAngle+Math.PI/2)*40,ky=hy+Math.sin(legAngle+Math.PI/2)*40; const ax=kx+Math.cos(legAngle+Math.PI/2)*30,ay=ky+Math.sin(legAngle+Math.PI/2)*30; drawLimb(ctx,hx-3,hy+5,kx-3,ky,12,12,8,C.skin,C.contour,C.skinS); drawMuscleHL(ctx,hx-3,hy+5,kx-3,ky,12,12,8,"outer",C.active,C.activeF); drawJoint(ctx,kx-3,ky,5,true); drawLimb(ctx,kx-3,ky,ax-3,ay,9,9,6,C.skin,C.contour,null); drawSneaker(ctx,ax-8,ay+8,legAngle); drawLimb(ctx,hx+3,hy+5,kx+3,ky,12,12,8,C.skinS,C.contour,null); drawJoint(ctx,kx+3,ky,5); drawLimb(ctx,kx+3,ky,ax+3,ay,9,9,6,C.skinS,C.contour,null); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,hy-5,8,10,0,0,Math.PI*2);ctx.fill();ctx.stroke(); drawHead(ctx,sx,sy-22,0); drawLabel(ctx,"lower abs",hx+15,hy-5);drawLabel(ctx,"hip flexors",hx+15,hy+8); } };
-
-EXERCISES["Half-Kneeling Hip Flexor Stretch"] = { dur: 3000, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; const sinkFwd=lerp(0,12,p); const hx=160,hy=floorY-55-sinkFwd*0.5; const sx=hx+Math.sin(-0.1)*60,sy=hy-Math.cos(-0.1)*60; drawShadow(ctx,hx,floorY+4,40,4); drawLimb(ctx,hx-8,hy+6,130,floorY-25,14,15,10,C.skin,C.contour,C.skinS); drawJoint(ctx,130,floorY-25,5,true); drawLimb(ctx,130,floorY-25,125,floorY-10,10,10,6,C.skin,C.contour,null); drawSneaker(ctx,120,floorY,0); const bky=floorY-5; drawLimb(ctx,hx+8,hy+6,195,bky,13,14,9,C.skinS,C.contour,C.skinD); drawMuscleHL(ctx,hx+8,hy+6,195,bky,13,14,9,"outer",C.secondary,C.secondaryF); drawJoint(ctx,195,bky,4); drawLimb(ctx,195,bky,210,floorY,8,7,5,C.skinS,C.contour,null); drawJoint(ctx,hx,hy,5.5); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); drawLimb(ctx,sx-12,sy+5,sx-20,sy+35,8,7,5,C.skin,C.contour,null); drawLimb(ctx,sx+12,sy+5,sx+20,sy+35,8,7,5,C.skinS,C.contour,null); drawHead(ctx,sx+Math.sin(-0.1)*22,sy-Math.cos(-0.1)*22,-0.03); drawLabel(ctx,"hip flexor",hx+20,hy+15,"rgba(243,156,18,0.35)");drawLabel(ctx,"(stretch)",hx+23,hy+25,"rgba(243,156,18,0.35)"); } };
-
-EXERCISES["Half-Kneeling Cable Chop (high to low)"] = { dur: 2600, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; drawCableMachine(ctx,w-40,20,floorY-20,30); const hx=150,hy=floorY-45; const sx=hx,sy=hy-55; drawShadow(ctx,hx,floorY+4,35,4); drawLimb(ctx,hx-8,hy+6,hx-20,floorY-20,13,14,9,C.skin,C.contour,C.skinS); drawJoint(ctx,hx-20,floorY-20,5,true); drawLimb(ctx,hx-20,floorY-20,hx-25,floorY-8,9,9,6,C.skin,C.contour,null); drawSneaker(ctx,hx-30,floorY,0); drawLimb(ctx,hx+8,hy+6,hx+20,floorY-5,12,11,7,C.skinS,C.contour,null); drawJoint(ctx,hx+20,floorY-5,4); drawJoint(ctx,hx,hy,5.5); ctx.fillStyle=C.activeF;ctx.strokeStyle=C.active;ctx.lineWidth=0.8; ctx.beginPath();ctx.ellipse(hx,(sy+hy)/2,9,16,ang(sx,sy,hx,hy),0,Math.PI*2);ctx.fill();ctx.stroke(); drawTorso(ctx,sx,sy,hx,hy);drawJoint(ctx,sx,sy,5); const handX=lerp(sx+50,sx-40,p),handY=lerp(sy-20,hy+15,p); drawLimb(ctx,sx-10,sy+5,handX-5,handY+10,8,8,6,C.skin,C.contour,null); drawLimb(ctx,handX-5,handY+10,handX,handY,6,6,5,C.skin,C.contour,null); drawHand(ctx,handX,handY,0); drawCable(ctx,handX,handY,w-32,30); drawHead(ctx,sx,sy-22,lerp(0.1,-0.1,p)); drawLabel(ctx,"obliques",hx+18,(sy+hy)/2); } };
-
-EXERCISES["Single-Arm Dumbbell Row"] = { dur: 2400, draw(ctx, w, h, p) { drawFloor(ctx,w,h); const floorY=h-26; ctx.fillStyle="#2e2e3c";ctx.beginPath();ctx.roundRect(100,floorY-50,80,8,3);ctx.fill();ctx.strokeStyle="#4a4a58";ctx.lineWidth=0.8;ctx.stroke(); ctx.strokeStyle="#444";ctx.lineWidth=3; ctx.beginPath();ctx.moveTo(110,floorY-42);ctx.lineTo(110,floorY);ctx.stroke(); ctx.beginPath();ctx.moveTo(170,floorY-42);ctx.lineTo(170,floorY);ctx.stroke(); const hx=175,hy=floorY-55; const sx=110,sy=floorY-60; drawShadow(ctx,(sx+hx)/2,floorY+4,45,4); drawLimb(ctx,sx+5,sy+5,115,floorY-55,7,7,5,C.skin,C.contour,null); drawLimb(ctx,hx,hy+5,165,floorY-50,11,10,7,C.skin,C.contour,null); drawLimb(ctx,hx-10,hy+5,hx-15,floorY-25,12,12,8,C.skinS,C.contour,null); drawJoint(ctx,hx-15,floorY-25,5,true); drawLimb(ctx,hx-15,floorY-25,hx-12,floorY-10,9,9,6,C.skinS,C.contour,null); drawSneaker(ctx,hx-17,floorY,0); drawLimb(ctx,sx,sy,hx,hy,16,15,13,C.skin,C.contour,C.skinS); drawMuscleHL(ctx,sx,sy,hx,hy,16,15,13,"inner",C.active,C.activeF); drawJoint(ctx,hx,hy,5);drawJoint(ctx,sx,sy,5); const handY=lerp(sy+50,sy+25,p); const elbY=lerp(sy+30,sy+15,p); drawLimb(ctx,sx+15,sy+5,sx+18,elbY,8,9,7,C.skinS,C.contour,null); drawJoint(ctx,sx+18,elbY,3.5); drawLimb(ctx,sx+18,elbY,sx+15,handY,7,7,5,C.skinS,C.contour,null); drawHand(ctx,sx+15,handY,Math.PI/2);drawDumbbell(ctx,sx+15,handY+1,0); drawHead(ctx,sx-15,sy-12,-0.3); drawLabel(ctx,"lats",hx-30,hy-10);drawLabel(ctx,"rhomboids",(sx+hx)/2-20,sy-10); } };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ANIMATED EXERCISE CANVAS COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════
-
-function AnimatedExercise({ exerciseName, width = 380, height = 340 }) {
-  const canvasRef = useRef(null);
-  const animRef = useRef(null);
-  const ex = EXERCISES[exerciseName];
+function ExerciseVisual({ exerciseName, width = 380, height = 340 }) {
+  const [gifUrl, setGifUrl] = useState(null);
+  const [fallbackImg, setFallbackImg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!ex) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = setupCanvas(canvas, width, height);
-    let start = null;
-    function loop(ts) {
-      if (!start) start = ts;
-      const p = stdProgress(ts - start, ex.dur || 2800);
-      ctx.clearRect(0, 0, width, height);
-      ex.draw(ctx, width, height, p);
-      animRef.current = requestAnimationFrame(loop);
-    }
-    animRef.current = requestAnimationFrame(loop);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [exerciseName, width, height, ex]);
+    let cancelled = false;
+    const map = GIF_SEARCH_MAP[exerciseName];
+    if (!map) { setLoading(false); setError(true); return; }
 
-  if (!ex) return <div style={{width,height,display:"flex",alignItems:"center",justifyContent:"center",color:"#555",fontSize:"12px"}}>Animation coming soon</div>;
-  return <canvas ref={canvasRef} style={{ width: `${width}px`, height: `${height}px`, display: "block" }} />;
+    async function loadGif() {
+      // Check localStorage cache for ExerciseDB ID
+      const cache = getEdbCache();
+      let edbId = cache[exerciseName];
+
+      if (!edbId && map.s) {
+        // Search ExerciseDB by name
+        try {
+          const encoded = encodeURIComponent(map.s.toLowerCase());
+          const res = await fetch(
+            `https://exercisedb.p.rapidapi.com/exercises/name/${encoded}?limit=1`,
+            { headers: { "X-RapidAPI-Key": EXERCISEDB_API_KEY, "X-RapidAPI-Host": "exercisedb.p.rapidapi.com" } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.length > 0 && data[0].id) {
+              edbId = data[0].id;
+              cache[exerciseName] = edbId;
+              setEdbCache(cache);
+            }
+          }
+        } catch (e) { /* Network error — will fall back */ }
+      }
+
+      if (!cancelled && edbId) {
+        // Build the GIF URL (loads directly in img tag with API key as query param)
+        setGifUrl(
+          `https://exercisedb.p.rapidapi.com/image?exerciseId=${edbId}&resolution=180&rapidapi-key=${EXERCISEDB_API_KEY}`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Fallback: free-exercise-db photo from GitHub
+      if (!cancelled && map.fb) {
+        setFallbackImg(`${GITHUB_IMG_BASE}/${map.fb}/0.jpg`);
+        setLoading(false);
+        return;
+      }
+
+      // No source available
+      if (!cancelled) { setLoading(false); setError(true); }
+    }
+
+    loadGif();
+    return () => { cancelled = true; };
+  }, [exerciseName]);
+
+  // ─── TEXT FALLBACK (no image available) ───
+  if (error || (!loading && !gifUrl && !fallbackImg)) {
+    const data = EX_DATA[exerciseName];
+    const map = GIF_SEARCH_MAP[exerciseName];
+    return (
+      <div style={{
+        width, height, display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        backgroundColor:"#0a0a10", borderRadius:"16px",
+        border:"1px solid #1a1a22", padding:"20px", gap:"12px",
+      }}>
+        <div style={{ width:64, height:64, borderRadius:"50%", backgroundColor:"#111118",
+          border:"1px solid #1e1e28", display:"flex", alignItems:"center",
+          justifyContent:"center", fontSize:"28px" }}>🏋️</div>
+        <div style={{ color:"#888", fontSize:"11px", letterSpacing:"1.5px",
+          textTransform:"uppercase", textAlign:"center" }}>
+          {data?.muscles?.split(",")[0] || "exercise"}
+        </div>
+        {data?.equip && (
+          <div style={{ color:"#555", fontSize:"11px" }}>
+            {data.equip}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const imgSrc = gifUrl || fallbackImg;
+
+  return (
+    <div style={{
+      width, height, display:"flex", alignItems:"center", justifyContent:"center",
+      backgroundColor:"#0a0a10", borderRadius:"16px",
+      border:"1px solid #1a1a22", overflow:"hidden", position:"relative",
+    }}>
+      {loading && (
+        <div style={{ position:"absolute", inset:0, display:"flex",
+          alignItems:"center", justifyContent:"center", color:"#333", fontSize:"12px" }}>
+          Loading...
+        </div>
+      )}
+      {imgSrc && (
+        <img
+          src={imgSrc}
+          alt={exerciseName}
+          onLoad={() => setLoading(false)}
+          onError={() => {
+            setLoading(false);
+            // If ExerciseDB GIF failed, try fallback
+            if (gifUrl && GIF_SEARCH_MAP[exerciseName]?.fb) {
+              setGifUrl(null);
+              setFallbackImg(`${GITHUB_IMG_BASE}/${GIF_SEARCH_MAP[exerciseName].fb}/0.jpg`);
+            } else {
+              setError(true);
+            }
+          }}
+          style={{
+            maxWidth:"100%", maxHeight:"100%", objectFit:"contain",
+            opacity: loading ? 0 : 1, transition:"opacity 0.3s ease",
+          }}
+        />
+      )}
+    </div>
+  );
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1194,7 +1002,7 @@ function ExerciseDetailView({ exerciseName, sets, sectionColor, onBack, mobile }
       <div style={{fontSize:"10px",letterSpacing:"2px",color:sectionColor,fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>{sets}</div>
       <h3 style={{fontSize:mobile?"18px":"22px",fontWeight:700,color:"#fff",marginBottom:"16px",fontFamily:"'Instrument Sans',sans-serif"}}>{exerciseName}</h3>
       <div style={{backgroundColor:"#0a0a10",borderRadius:"16px",border:"1px solid #1a1a22",marginBottom:"20px",overflow:"hidden",display:"flex",justifyContent:"center"}}>
-        <AnimatedExercise exerciseName={exerciseName} width={canvasW} height={canvasH} />
+        <ExerciseVisual exerciseName={exerciseName} width={canvasW} height={canvasH} />
       </div>
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:"12px",marginBottom:"24px"}}>
         <div style={{backgroundColor:"#0c0c10",borderRadius:"10px",padding:"14px",border:"1px solid #1a1a1f"}}>
