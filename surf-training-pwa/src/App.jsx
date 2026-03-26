@@ -57,7 +57,6 @@ function setupCanvas(canvas, w, h) {
 function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function ang(x1,y1,x2,y2) { return Math.atan2(y2-y1,x2-x1); }
-function dist(x1,y1,x2,y2) { return Math.sqrt((x2-x1)**2+(y2-y1)**2); }
 
 function stdProgress(elapsed, dur = 2800) {
   const t = (elapsed % dur) / dur;
@@ -1535,6 +1534,7 @@ const ACTIVITY_OPTIONS = [
 function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose, mobile }) {
   const isSurf = activityKey === 'surf';
   const isGym = activityKey === 'gym';
+  const isSoftball = activityKey === 'softball';
   const ds = date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   // Surf fields
@@ -1544,13 +1544,18 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
   const [showSpotPicker, setShowSpotPicker] = useState(false);
   const [showBoardPicker, setShowBoardPicker] = useState(false);
 
+  // Softball fields
+  const [gameResult, setGameResult] = useState(null); // 'W' or 'L' or null
+
   // Shared fields
   const durationPresets = isSurf
     ? [{ label: "45m", min: 45 }, { label: "1h", min: 60 }, { label: "1.5h", min: 90 }, { label: "2h", min: 120 }, { label: "2.5h", min: 150 }]
     : isGym
     ? [{ label: "30m", min: 30 }, { label: "45m", min: 45 }, { label: "60m", min: 60 }, { label: "75m", min: 75 }, { label: "90m", min: 90 }]
+    : isSoftball
+    ? [{ label: "1h", min: 60 }, { label: "1.5h", min: 90 }, { label: "2h", min: 120 }, { label: "2.5h", min: 150 }]
     : [{ label: "20m", min: 20 }, { label: "30m", min: 30 }, { label: "45m", min: 45 }, { label: "60m", min: 60 }, { label: "90m", min: 90 }];
-  const [duration, setDuration] = useState(isSurf ? 90 : isGym ? 60 : 45);
+  const [duration, setDuration] = useState(isSurf ? 90 : isGym ? 60 : isSoftball ? 90 : 45);
   const [notes, setNotes] = useState("");
 
   const handleSubmit = () => {
@@ -1559,6 +1564,9 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
       logData.spot = spot;
       logData.board = board;
       logData.stoke = stoke;
+    }
+    if (isSoftball) {
+      logData.result = gameResult;
     }
     if (isGym && context?.program) {
       logData.program = context.program;
@@ -1569,8 +1577,8 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
     onSubmit(logData);
   };
 
-  const title = isSurf ? "Log Surf Session" : isGym ? "Log Gym Session" : activityKey === 'softball' ? "Log Softball" : "Log Activity";
-  const accentColor = isSurf ? "#48dbfb" : isGym ? "#00d4aa" : activityKey === 'softball' ? "#c39bd3" : "#82e0aa";
+  const title = isSurf ? "Log Surf Session" : isGym ? "Log Gym Session" : isSoftball ? "Log Softball" : "Log Activity";
+  const accentColor = isSurf ? "#48dbfb" : isGym ? "#00d4aa" : isSoftball ? "#c39bd3" : "#82e0aa";
 
   // Picker sub-component
   const PickerList = ({ items, selected, onSelect, onDone, renderItem }) => (
@@ -1666,6 +1674,31 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
                     transition:"all 0.15s",
                   }}>
                     <span style={{fontSize:"9px",fontWeight:isExact ? 700 : 500,color:isExact ? s.color : isActive ? `${s.color}88` : "#444",fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.5px"}}>{s.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Softball: Win/Loss */}
+        {isSoftball && (
+          <div style={{marginBottom:"20px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"8px"}}>RESULT</div>
+            <div style={{display:"flex",gap:"8px"}}>
+              {[{ key: 'W', label: 'Win', color: '#00d4aa' }, { key: 'L', label: 'Loss', color: '#ff4757' }].map(r => {
+                const isActive = gameResult === r.key;
+                return (
+                  <button key={r.key} onClick={() => setGameResult(isActive ? null : r.key)} style={{
+                    flex:1,padding:"14px 4px",borderRadius:"10px",cursor:"pointer",
+                    backgroundColor: isActive ? `${r.color}18` : "#0c0c10",
+                    border: isActive ? `2px solid ${r.color}66` : "1px solid #1a1a1f",
+                    borderBottom: isActive ? `3px solid ${r.color}` : "1px solid #1a1a1f",
+                    display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",
+                    transition:"all 0.15s",
+                  }}>
+                    <span style={{fontSize:"18px",fontWeight:700,color:isActive ? r.color : "#333",fontFamily:"'JetBrains Mono',monospace"}}>{r.key}</span>
+                    <span style={{fontSize:"9px",color:isActive ? r.color : "#555",fontFamily:"'JetBrains Mono',monospace"}}>{r.label}</span>
                   </button>
                 );
               })}
@@ -2062,101 +2095,279 @@ function PhilosophySection({ mobile }) {
 // PROGRESS CHART (Canvas)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ProgressChart({ schedule, progress, mobile }) {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
+// SVG Weekly Trend Line Chart
+function WeeklyTrendChart({ schedule, progress, mobile }) {
+  if (schedule.length === 0) return null;
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container || schedule.length === 0) return;
-
-    const cw = container.offsetWidth;
-    const ch = mobile ? 260 : 320;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = cw * dpr;
-    canvas.height = ch * dpr;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-
-    const pad = { top: 40, right: 20, bottom: 50, left: 44 };
-    const gw = cw - pad.left - pad.right;
-    const gh = ch - pad.top - pad.bottom;
-
-    const weekData = schedule.map(week => {
-      let gym = 0, gymTotal = 0, surf = 0, surfTotal = 0, other = 0, otherTotal = 0;
-      week.days.forEach(d => {
-        const key = dateKey(d.date);
-        const dayP = progress[key] || {};
-        if (d.am && d.am.type === 'gym') { gymTotal++; if (dayP.gym) gym++; }
-        if (d.pm) {
-          if (d.pm.type === 'surf') { surfTotal++; if (dayP.surf) surf++; }
-          else if (d.pm.type === 'softball') { otherTotal++; if (dayP.softball) other++; }
-          else { otherTotal++; if (dayP.alt) other++; }
-        }
-      });
-      return { gym, gymTotal, surf, surfTotal, other, otherTotal, total: gym + surf + other, totalPossible: gymTotal + surfTotal + otherTotal, weekNum: week.weekNumber };
+  const weekData = schedule.map(week => {
+    let gym = 0, surf = 0, other = 0;
+    week.days.forEach(d => {
+      const key = dateKey(d.date);
+      const dayP = progress[key] || {};
+      if (d.am && d.am.type === 'gym' && dayP.gym) gym++;
+      if (d.pm) {
+        if (d.pm.type === 'surf' && dayP.surf) surf++;
+        else if (d.pm.type === 'softball' && dayP.softball) other++;
+        else if (d.pm.type !== 'surf' && d.pm.type !== 'softball' && dayP.alt) other++;
+      }
     });
+    return { gym, surf, other, total: gym + surf + other, weekNum: week.weekNumber };
+  });
 
-    ctx.fillStyle = '#08080c'; ctx.fillRect(0, 0, cw, ch);
+  const w = mobile ? 340 : 500;
+  const h = mobile ? 180 : 220;
+  const pad = { top: 20, right: 16, bottom: 28, left: 32 };
+  const gw = w - pad.left - pad.right;
+  const gh = h - pad.top - pad.bottom;
+  const maxY = Math.max(6, ...weekData.map(d => d.total));
+  const n = weekData.length;
 
-    const maxY = Math.max(10, ...weekData.map(w => w.totalPossible));
-    const ySteps = 5;
-    ctx.strokeStyle = '#1a1a22'; ctx.lineWidth = 1;
-    ctx.font = "10px 'JetBrains Mono', monospace";
-    ctx.fillStyle = '#444'; ctx.textAlign = 'right';
-    for (let i = 0; i <= ySteps; i++) {
-      const val = Math.round(maxY * i / ySteps);
-      const y = pad.top + gh - (gh * i / ySteps);
-      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + gw, y); ctx.stroke();
-      ctx.fillText(val, pad.left - 8, y + 4);
-    }
+  const toX = (i) => pad.left + (n > 1 ? (i / (n - 1)) * gw : gw / 2);
+  const toY = (val) => pad.top + gh - (val / maxY) * gh;
 
-    ctx.textAlign = 'center'; ctx.fillStyle = '#444';
-    const barGroupW = gw / weekData.length;
-    weekData.forEach((w, i) => {
-      const x = pad.left + i * barGroupW + barGroupW / 2;
-      ctx.fillText(`W${w.weekNum}`, x, ch - pad.bottom + 18);
-    });
+  const makePath = (key) => {
+    return weekData.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(d[key]).toFixed(1)}`).join(' ');
+  };
+  const makeArea = (key) => {
+    const line = weekData.map((d, i) => `${toX(i).toFixed(1)},${toY(d[key]).toFixed(1)}`);
+    return `M${line.join(' L')} L${toX(n - 1).toFixed(1)},${toY(0).toFixed(1)} L${toX(0).toFixed(1)},${toY(0).toFixed(1)} Z`;
+  };
 
-    weekData.forEach((w, i) => {
-      const x = pad.left + i * barGroupW + barGroupW * 0.15;
-      const bw = barGroupW * 0.35;
-      const x2 = x + bw + barGroupW * 0.05;
-      const possH = (w.totalPossible / maxY) * gh;
-      ctx.fillStyle = '#151520';
-      ctx.beginPath(); ctx.roundRect(x, pad.top + gh - possH, bw * 2 + barGroupW * 0.05, possH, 3); ctx.fill();
-      const gymH = (w.gym / maxY) * gh;
-      if (gymH > 0) { ctx.fillStyle = '#00d4aa'; ctx.beginPath(); ctx.roundRect(x, pad.top + gh - gymH, bw, gymH, [3, 3, 0, 0]); ctx.fill(); }
-      const surfH = (w.surf / maxY) * gh;
-      const otherH = (w.other / maxY) * gh;
-      if (surfH > 0) { ctx.fillStyle = '#48dbfb'; ctx.beginPath(); ctx.roundRect(x2, pad.top + gh - surfH - otherH, bw, surfH, otherH > 0 ? 0 : [3, 3, 0, 0]); ctx.fill(); }
-      if (otherH > 0) { ctx.fillStyle = '#c39bd3'; ctx.beginPath(); ctx.roundRect(x2, pad.top + gh - otherH, bw, otherH, [3, 3, 0, 0]); ctx.fill(); }
-    });
+  const lines = [
+    { key: 'total', color: '#fff', label: 'Total', width: 2 },
+    { key: 'gym', color: '#00d4aa', label: 'Gym', width: 1.5 },
+    { key: 'surf', color: '#48dbfb', label: 'Surf', width: 1.5 },
+  ];
 
-    ctx.font = "11px 'JetBrains Mono', monospace"; ctx.fillStyle = '#555'; ctx.textAlign = 'left';
-    ctx.fillText('ACTIVITIES COMPLETED BY WEEK', pad.left, 20);
-    const legendX = cw - pad.right; ctx.textAlign = 'right';
-    ctx.font = "9px 'JetBrains Mono', monospace";
-    [{ c: '#00d4aa', l: 'Gym' }, { c: '#48dbfb', l: 'Surf' }, { c: '#c39bd3', l: 'Other' }].forEach((item, i) => {
-      const lx = legendX - i * 65;
-      ctx.fillStyle = item.c; ctx.fillRect(lx - 50, 14, 8, 8);
-      ctx.fillStyle = '#666'; ctx.fillText(item.l, lx, 22);
-    });
-  }, [schedule, progress, mobile]);
+  const ySteps = 4;
 
   return (
-    <div ref={containerRef} style={{ width: '100%' }}>
-      <canvas ref={canvasRef} style={{ width: '100%', height: mobile ? '260px' : '320px', display: 'block' }} />
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+        {/* Grid lines */}
+        {Array.from({ length: ySteps + 1 }).map((_, i) => {
+          const y = pad.top + gh - (gh * i / ySteps);
+          const val = Math.round(maxY * i / ySteps);
+          return (
+            <g key={i}>
+              <line x1={pad.left} y1={y} x2={pad.left + gw} y2={y} stroke="#1a1a22" strokeWidth="1" />
+              <text x={pad.left - 8} y={y + 4} fill="#444" fontSize="9" fontFamily="'JetBrains Mono',monospace" textAnchor="end">{val}</text>
+            </g>
+          );
+        })}
+
+        {/* Week labels */}
+        {weekData.map((d, i) => (
+          <text key={i} x={toX(i)} y={h - 6} fill="#444" fontSize="8" fontFamily="'JetBrains Mono',monospace" textAnchor="middle">W{d.weekNum}</text>
+        ))}
+
+        {/* Area fills */}
+        {lines.filter(l => l.key !== 'total').map(l => (
+          <path key={`area-${l.key}`} d={makeArea(l.key)} fill={`${l.color}08`} />
+        ))}
+
+        {/* Lines */}
+        {lines.map(l => (
+          <path key={l.key} d={makePath(l.key)} fill="none" stroke={l.color} strokeWidth={l.width} strokeLinecap="round" strokeLinejoin="round" opacity={l.key === 'total' ? 0.4 : 1} strokeDasharray={l.key === 'total' ? '4 3' : 'none'} />
+        ))}
+
+        {/* Dots */}
+        {lines.filter(l => l.key !== 'total').map(l => (
+          weekData.map((d, i) => d[l.key] > 0 ? (
+            <circle key={`${l.key}-${i}`} cx={toX(i)} cy={toY(d[l.key])} r="3" fill="#14141c" stroke={l.color} strokeWidth="1.5" />
+          ) : null)
+        ))}
+      </svg>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '8px' }}>
+        {lines.map(l => (
+          <div key={l.key} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <div style={{ width: l.key === 'total' ? '16px' : '10px', height: '3px', borderRadius: '1.5px', backgroundColor: l.color, opacity: l.key === 'total' ? 0.4 : 1 }} />
+            <span style={{ fontSize: '9px', color: '#555', fontFamily: "'JetBrains Mono',monospace" }}>{l.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Training Heat Map (GitHub contribution grid style)
+function TrainingHeatMap({ progress, mobile }) {
+  const now = new Date();
+  const weeksToShow = mobile ? 10 : 14;
+  const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  // Build grid: weeksToShow columns x 7 rows, ending at this week
+  const today = new Date(now);
+  const todayDow = today.getDay();
+  // Start of this week (Sunday)
+  const thisWeekStart = new Date(today);
+  thisWeekStart.setDate(thisWeekStart.getDate() - todayDow);
+
+  const grid = [];
+  for (let w = weeksToShow - 1; w >= 0; w--) {
+    const weekStart = new Date(thisWeekStart);
+    weekStart.setDate(weekStart.getDate() - w * 7);
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(weekStart);
+      day.setDate(day.getDate() + d);
+      const dk = dateKey(day);
+      const dayP = progress[dk] || {};
+      const hasGym = !!dayP.gym;
+      const hasSurf = !!dayP.surf;
+      const hasOther = !!dayP.softball || !!dayP.alt;
+      const isFuture = day > now;
+      const isToday = day.toDateString() === now.toDateString();
+      let color = '#111116';
+      if (hasGym && hasSurf) color = '#00d4aa'; // both = strong green
+      else if (hasSurf) color = '#48dbfb';
+      else if (hasGym) color = '#00d4aa88';
+      else if (hasOther) color = '#c39bd388';
+      week.push({ dk, color, isFuture, isToday, hasActivity: hasGym || hasSurf || hasOther });
+    }
+    grid.push(week);
+  }
+
+  const cellSize = mobile ? 22 : 20;
+  const gap = 3;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: `${gap}px` }}>
+        {/* Day labels */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${gap}px`, paddingTop: '0' }}>
+          {dayNames.map((d, i) => (
+            <div key={i} style={{ width: '14px', height: `${cellSize}px`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <span style={{ fontSize: '8px', color: '#444', fontFamily: "'JetBrains Mono',monospace" }}>{i % 2 === 1 ? d : ''}</span>
+            </div>
+          ))}
+        </div>
+        {/* Grid */}
+        {grid.map((week, wi) => (
+          <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: `${gap}px` }}>
+            {week.map((day, di) => (
+              <div key={di} style={{
+                width: `${cellSize}px`, height: `${cellSize}px`, borderRadius: '4px',
+                backgroundColor: day.isFuture ? '#0c0c10' : day.color,
+                border: day.isToday ? '2px solid #fff' : '1px solid #1a1a1f',
+                opacity: day.isFuture ? 0.3 : 1,
+                transition: 'background-color 0.2s',
+              }} />
+            ))}
+          </div>
+        ))}
+      </div>
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '10px', flexWrap: 'wrap' }}>
+        {[
+          { color: '#111116', label: 'Rest' },
+          { color: '#00d4aa88', label: 'Gym' },
+          { color: '#48dbfb', label: 'Surf' },
+          { color: '#00d4aa', label: 'Both' },
+          { color: '#c39bd388', label: 'Other' },
+        ].map(l => (
+          <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: l.color, border: '1px solid #1a1a1f' }} />
+            <span style={{ fontSize: '8px', color: '#555', fontFamily: "'JetBrains Mono',monospace" }}>{l.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PROGRESS VIEW
+// PROGRESS VIEW (Phase 4B — Analytics Dashboard)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ProgressView({ schedule, progress, isComplete, toggle, mobile, reset, activityLogs }) {
+// Shared session row component for recent sessions lists
+function SessionRow({ s }) {
+  const getColor = (k) => k === 'surf' ? '#48dbfb' : k === 'gym' ? '#00d4aa' : k === 'softball' ? '#c39bd3' : '#82e0aa';
+  const getLabel = (k) => k === 'surf' ? 'SURF' : k === 'gym' ? 'GYM' : k === 'softball' ? 'SOFTBALL' : 'ACTIVE';
+  const d = new Date(s.date + 'T12:00:00');
+  const ds = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const color = getColor(s.activityKey);
+  const stokeData = s.stoke ? STOKE_LEVELS.find(sl => sl.value === s.stoke) : null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', gap: '0', borderRadius: '10px', overflow: 'hidden', border: '1px solid #181820' }}>
+      <div style={{ width: '4px', backgroundColor: color, flexShrink: 0 }} />
+      <div style={{ flex: 1, padding: '10px 12px', backgroundColor: '#111116' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '9px', letterSpacing: '1px', color: color, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{getLabel(s.activityKey)}</span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#ccc' }}>
+              {s.activityKey === 'surf' && s.spot ? s.spot : s.activityKey === 'gym' ? `Workout ${s.program || ''}` : s.activityKey.charAt(0).toUpperCase() + s.activityKey.slice(1)}
+            </span>
+          </div>
+          <span style={{ fontSize: '10px', color: '#555', fontFamily: "'JetBrains Mono',monospace" }}>{ds}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {s.duration && <span style={{ fontSize: '10px', color: '#777', fontFamily: "'JetBrains Mono',monospace" }}>{s.duration >= 60 ? `${Math.floor(s.duration/60)}h${s.duration%60 ? `${s.duration%60}m` : ''}` : `${s.duration}m`}</span>}
+          {s.board && <span style={{ fontSize: '10px', color: '#555' }}>{s.board}</span>}
+          {stokeData && (
+            <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+              {STOKE_LEVELS.map(sl => (
+                <div key={sl.value} style={{ width: '12px', height: '4px', borderRadius: '2px', backgroundColor: sl.value <= s.stoke ? sl.color : '#1a1a1f' }} />
+              ))}
+              <span style={{ fontSize: '9px', color: stokeData.color, fontFamily: "'JetBrains Mono',monospace", marginLeft: '4px' }}>{stokeData.label}</span>
+            </div>
+          )}
+          {s.result && <span style={{ fontSize: '10px', fontWeight: 700, color: s.result === 'W' ? '#00d4aa' : '#ff4757', fontFamily: "'JetBrains Mono',monospace" }}>{s.result === 'W' ? 'W' : 'L'}</span>}
+        </div>
+        {s.notes && <div style={{ fontSize: '11px', color: '#666', marginTop: '4px', lineHeight: 1.4 }}>{s.notes}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Horizontal bar chart for frequency data (spots, boards)
+function FrequencyBars({ items, color, mobile }) {
+  if (!items || items.length === 0) return <div style={{ fontSize: '11px', color: '#444', padding: '12px 0' }}>No data yet</div>;
+  const max = Math.max(...items.map(i => i.count));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {items.map((item, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: mobile ? '100px' : '140px', fontSize: '11px', color: '#999', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</div>
+          <div style={{ flex: 1, height: '18px', backgroundColor: '#1a1a1f', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+            <div style={{ width: `${max > 0 ? (item.count / max) * 100 : 0}%`, height: '100%', backgroundColor: `${color}44`, borderRadius: '4px', minWidth: item.count > 0 ? '2px' : '0', transition: 'width 0.3s' }} />
+            <span style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: color, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{item.count}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Stat card component
+function StatCard({ label, value, sub, color, mobile }) {
+  return (
+    <div style={{ backgroundColor: '#0c0c10', borderRadius: '12px', padding: mobile ? '14px' : '18px', border: '1px solid #1a1a1f', textAlign: 'center' }}>
+      <div style={{ fontSize: '9px', letterSpacing: '1.5px', color: '#555', fontFamily: "'JetBrains Mono',monospace", marginBottom: '6px' }}>{label}</div>
+      <div style={{ fontSize: mobile ? '22px' : '28px', fontWeight: 700, color: color, fontFamily: "'JetBrains Mono',monospace" }}>{value}</div>
+      {sub && <div style={{ fontSize: '10px', color: '#555', marginTop: '4px' }}>{sub}</div>}
+    </div>
+  );
+}
+
+// Section wrapper
+function DashSection({ title, color, children, mobile }) {
+  return (
+    <div style={{ backgroundColor: '#0c0c10', borderRadius: '14px', padding: mobile ? '16px' : '20px', border: '1px solid #1a1a1f', marginBottom: '16px' }}>
+      <div style={{ fontSize: '10px', letterSpacing: '2px', color: color || '#555', fontFamily: "'JetBrains Mono',monospace", marginBottom: '14px' }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function ProgressView({ schedule, progress, toggle, mobile, reset, activityLogs }) {
+  const [subTab, setSubTab] = useState('overview');
+  const [showReset, setShowReset] = useState(false);
+  const now = new Date();
+
+  // ─── Compute schedule-based stats ───
   let totalGym = 0, doneGym = 0, totalSurf = 0, doneSurf = 0, totalOther = 0, doneOther = 0;
   schedule.forEach(week => {
     week.days.forEach(d => {
@@ -2174,159 +2385,325 @@ function ProgressView({ schedule, progress, isComplete, toggle, mobile, reset, a
   const totalAll = totalGym + totalSurf + totalOther;
   const pct = totalAll > 0 ? Math.round(totalDone / totalAll * 100) : 0;
 
-  const now = new Date();
   const curWeek = schedule.find(w => {
     const end = new Date(w.startDate); end.setDate(end.getDate() + 6);
     return now >= w.startDate && now <= end;
   });
 
-  const [showReset, setShowReset] = useState(false);
-
-  // Build recent sessions from activityLogs (most recent first, max 10)
-  const recentSessions = [];
+  // ─── Build all sessions list ───
+  const allSessions = [];
   if (activityLogs) {
     Object.entries(activityLogs).forEach(([dk, dayLogs]) => {
       Object.entries(dayLogs).forEach(([actKey, log]) => {
-        recentSessions.push({ date: dk, activityKey: actKey, ...log });
+        allSessions.push({ date: dk, activityKey: actKey, ...log });
       });
     });
-    recentSessions.sort((a, b) => b.date.localeCompare(a.date) || (b.loggedAt || '').localeCompare(a.loggedAt || ''));
+    allSessions.sort((a, b) => b.date.localeCompare(a.date) || (b.loggedAt || '').localeCompare(a.loggedAt || ''));
   }
-  const visibleSessions = recentSessions.slice(0, 10);
+  const surfSessions = allSessions.filter(s => s.activityKey === 'surf');
+  const gymSessions = allSessions.filter(s => s.activityKey === 'gym');
 
-  const getSessionColor = (actKey) => {
-    if (actKey === 'surf') return '#48dbfb';
-    if (actKey === 'gym') return '#00d4aa';
-    if (actKey === 'softball') return '#c39bd3';
-    return '#82e0aa';
-  };
-  const getSessionLabel = (actKey) => {
-    if (actKey === 'surf') return 'SURF';
-    if (actKey === 'gym') return 'GYM';
-    if (actKey === 'softball') return 'SOFTBALL';
-    return 'ACTIVE';
-  };
+  // ─── Streak calculation (any activity = counts) ───
+  const activeDates = new Set();
+  if (progress) {
+    Object.entries(progress).forEach(([dk, dayP]) => {
+      if (Object.values(dayP).some(Boolean)) activeDates.add(dk);
+    });
+  }
 
+  let currentStreak = 0;
+  const todayKey = dateKey(now);
+  const yesterdayD = new Date(now); yesterdayD.setDate(yesterdayD.getDate() - 1);
+  const yesterdayKey = dateKey(yesterdayD);
+  // Start from today or yesterday
+  let checkDate = new Date(now);
+  if (!activeDates.has(todayKey) && activeDates.has(yesterdayKey)) {
+    checkDate = new Date(yesterdayD);
+  } else if (!activeDates.has(todayKey)) {
+    checkDate = null;
+  }
+  if (checkDate) {
+    const d = new Date(checkDate);
+    while (activeDates.has(dateKey(d))) {
+      currentStreak++;
+      d.setDate(d.getDate() - 1);
+    }
+  }
+
+  let longestStreak = 0, tempStreak = 0;
+  const chronoDates = [...activeDates].sort();
+  for (let i = 0; i < chronoDates.length; i++) {
+    if (i === 0) { tempStreak = 1; }
+    else {
+      const prev = new Date(chronoDates[i - 1] + 'T12:00:00');
+      const curr = new Date(chronoDates[i] + 'T12:00:00');
+      const diffDays = Math.round((curr - prev) / 86400000);
+      tempStreak = diffDays === 1 ? tempStreak + 1 : 1;
+    }
+    longestStreak = Math.max(longestStreak, tempStreak);
+  }
+
+  // Weekly consistency: of the last 4 fully completed weeks, how many had 5+ active days
+  let consistentWeeks = 0, totalWeeksChecked = 0;
+  const todayForWeek = new Date(now);
+  const todayDowForWeek = todayForWeek.getDay();
+  // Start of this week (Sunday)
+  const thisWeekSunday = new Date(todayForWeek);
+  thisWeekSunday.setDate(thisWeekSunday.getDate() - todayDowForWeek);
+  for (let w = 1; w <= 4; w++) {
+    // Go back w full weeks
+    const weekStart = new Date(thisWeekSunday);
+    weekStart.setDate(weekStart.getDate() - w * 7);
+    let activeDaysInWeek = 0;
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(weekStart);
+      day.setDate(day.getDate() + d);
+      if (activeDates.has(dateKey(day))) activeDaysInWeek++;
+    }
+    totalWeeksChecked++;
+    if (activeDaysInWeek >= 5) consistentWeeks++;
+  }
+  const consistencyPct = totalWeeksChecked > 0 ? Math.round((consistentWeeks / totalWeeksChecked) * 100) : 0;
+
+  // ─── This Month stats ───
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+  const monthSurf = surfSessions.filter(s => { const d = new Date(s.date + 'T12:00:00'); return d.getMonth() === thisMonth && d.getFullYear() === thisYear; });
+  const monthGym = gymSessions.filter(s => { const d = new Date(s.date + 'T12:00:00'); return d.getMonth() === thisMonth && d.getFullYear() === thisYear; });
+
+  // Spot frequency
+  const spotCounts = {};
+  surfSessions.forEach(s => { if (s.spot) spotCounts[s.spot] = (spotCounts[s.spot] || 0) + 1; });
+  const spotFreq = Object.entries(spotCounts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+
+  // Board usage
+  const boardCounts = {};
+  surfSessions.forEach(s => { if (s.board) boardCounts[s.board] = (boardCounts[s.board] || 0) + 1; });
+  const boardFreq = Object.entries(boardCounts).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+
+  // This month top spot/board
+  const monthSpotCounts = {};
+  monthSurf.forEach(s => { if (s.spot) monthSpotCounts[s.spot] = (monthSpotCounts[s.spot] || 0) + 1; });
+  const topSpot = Object.entries(monthSpotCounts).sort((a, b) => b[1] - a[1])[0];
+  const monthBoardCounts = {};
+  monthSurf.forEach(s => { if (s.board) monthBoardCounts[s.board] = (monthBoardCounts[s.board] || 0) + 1; });
+  const topBoard = Object.entries(monthBoardCounts).sort((a, b) => b[1] - a[1])[0];
+
+  // Total activities this month (from all logs)
+  const monthAllActivities = allSessions.filter(s => { const d = new Date(s.date + 'T12:00:00'); return d.getMonth() === thisMonth && d.getFullYear() === thisYear; });
+
+  // Surf averages
+  const avgSurfDuration = surfSessions.length > 0 ? Math.round(surfSessions.reduce((sum, s) => sum + (s.duration || 0), 0) / surfSessions.length) : 0;
+  const avgStoke = surfSessions.filter(s => s.stoke).length > 0 ? (surfSessions.reduce((sum, s) => sum + (s.stoke || 0), 0) / surfSessions.filter(s => s.stoke).length).toFixed(1) : 0;
+  const avgGymDuration = gymSessions.length > 0 ? Math.round(gymSessions.reduce((sum, s) => sum + (s.duration || 0), 0) / gymSessions.length) : 0;
+
+  // Gym program breakdown
+  const gymProgCounts = {};
+  gymSessions.forEach(s => { const p = s.program || '?'; gymProgCounts[p] = (gymProgCounts[p] || 0) + 1; });
+  const gymProgFreq = Object.entries(gymProgCounts).map(([label, count]) => ({ label: `Workout ${label}`, count })).sort((a, b) => b.count - a.count);
+
+  const monthName = now.toLocaleDateString("en-US", { month: "long" });
+
+  // ─── RENDER ───
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '28px' }}>
+      {/* Mini tab bar */}
+      <div style={{ display: 'flex', gap: '2px', marginBottom: '20px', backgroundColor: '#0c0c10', borderRadius: '10px', padding: '3px', border: '1px solid #1a1a1f' }}>
         {[
-          { label: 'Overall', value: `${pct}%`, sub: `${totalDone}/${totalAll} activities`, color: '#00d4aa' },
-          { label: 'Gym', value: `${doneGym}/${totalGym}`, sub: 'sessions', color: '#00d4aa' },
-          { label: 'Surf', value: `${doneSurf}/${totalSurf}`, sub: 'sessions', color: '#48dbfb' },
-          { label: 'Other', value: `${doneOther}/${totalOther}`, sub: 'softball + alt', color: '#c39bd3' },
-        ].map(c => (
-          <div key={c.label} style={{ backgroundColor: '#0c0c10', borderRadius: '12px', padding: mobile ? '14px' : '18px', border: '1px solid #1a1a1f', textAlign: 'center' }}>
-            <div style={{ fontSize: '9px', letterSpacing: '1.5px', color: '#555', fontFamily: "'JetBrains Mono',monospace", marginBottom: '6px' }}>{c.label.toUpperCase()}</div>
-            <div style={{ fontSize: mobile ? '22px' : '28px', fontWeight: 700, color: c.color, fontFamily: "'JetBrains Mono',monospace" }}>{c.value}</div>
-            <div style={{ fontSize: '10px', color: '#555', marginTop: '4px' }}>{c.sub}</div>
-          </div>
+          { key: 'overview', label: 'Overview', color: '#00d4aa' },
+          { key: 'surf', label: 'Surf', color: '#48dbfb' },
+          { key: 'gym', label: 'Gym', color: '#00d4aa' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setSubTab(t.key)} style={{
+            flex: 1, padding: mobile ? '8px 6px' : '10px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+            fontSize: mobile ? '11px' : '12px', letterSpacing: '1px', fontWeight: 600,
+            fontFamily: "'JetBrains Mono',monospace",
+            backgroundColor: subTab === t.key ? `${t.color}15` : 'transparent',
+            color: subTab === t.key ? t.color : '#555',
+            transition: 'all 0.15s',
+          }}>{t.label}</button>
         ))}
       </div>
 
-      {curWeek && (
-        <div style={{ backgroundColor: '#0c0c10', borderRadius: '14px', padding: mobile ? '16px' : '20px', border: '1px solid #1a1a1f', marginBottom: '28px' }}>
-          <div style={{ fontSize: '10px', letterSpacing: '2px', color: curWeek.isDeload ? '#e6b800' : '#00d4aa', fontFamily: "'JetBrains Mono',monospace", marginBottom: '12px' }}>
-            THIS WEEK ({curWeek.isDeload ? 'DELOAD' : `M${curWeek.mesocycle} W${curWeek.weekInMeso}`})
+      {/* ═══ OVERVIEW TAB ═══ */}
+      {subTab === 'overview' && (
+        <>
+          {/* Stat cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <StatCard label="OVERALL" value={`${pct}%`} sub={`${totalDone}/${totalAll} activities`} color="#00d4aa" mobile={mobile} />
+            <StatCard label="GYM" value={`${doneGym}/${totalGym}`} sub="sessions" color="#00d4aa" mobile={mobile} />
+            <StatCard label="SURF" value={`${doneSurf}/${totalSurf}`} sub="sessions" color="#48dbfb" mobile={mobile} />
+            <StatCard label="OTHER" value={`${doneOther}/${totalOther}`} sub="softball + alt" color="#c39bd3" mobile={mobile} />
           </div>
-          <div style={{ display: 'flex', gap: mobile ? '8px' : '16px', flexWrap: 'wrap' }}>
-            {curWeek.days.map((d, i) => {
-              const key = dateKey(d.date);
-              const dayP = progress[key] || {};
-              const isToday = now.toDateString() === d.date.toDateString();
-              const hasGym = d.am && d.am.type === 'gym';
-              const hasPM = d.pm !== null;
-              const gymDone = dayP.gym;
-              const pmType = d.pm?.type;
-              const pmDone = pmType === 'surf' ? dayP.surf : pmType === 'softball' ? dayP.softball : dayP.alt;
-              const allDone = (!hasGym || gymDone) && (!hasPM || pmDone);
-              const isPast = d.date < now && !isToday;
-              return (
-                <div key={i} style={{ flex: mobile ? '1 1 calc(50% - 4px)' : '1 1 0', minWidth: mobile ? 'calc(50% - 4px)' : '100px', backgroundColor: isToday ? '#1a1a2e' : '#111116', borderRadius: '10px', padding: '10px', border: isToday ? '1px solid #00d4aa33' : '1px solid #181820', position: 'relative', opacity: isPast && !allDone ? 0.5 : 1 }}>
-                  <div style={{ fontSize: '10px', fontWeight: 700, color: isToday ? '#00d4aa' : '#555', fontFamily: "'JetBrains Mono',monospace", marginBottom: '6px' }}>
-                    {d.dayName.toUpperCase()} {isToday && <span style={{ fontSize: '8px', color: '#00d4aa88' }}>TODAY</span>}
-                  </div>
-                  {hasGym && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <CheckBtn checked={!!gymDone} onClick={() => toggle(d.date, 'gym', { program: d.am.program })} size={18} color="#00d4aa" />
-                      <span style={{ fontSize: '11px', color: gymDone ? '#00d4aa88' : '#888', textDecoration: gymDone ? 'line-through' : 'none' }}>Gym {d.am.program}</span>
-                    </div>
-                  )}
-                  {hasPM && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <CheckBtn checked={!!pmDone} onClick={() => toggle(d.date, pmType === 'surf' ? 'surf' : pmType === 'softball' ? 'softball' : 'alt', { activity: d.pm?.activity })} size={18} color={pmType === 'surf' ? '#48dbfb' : pmType === 'softball' ? '#c39bd3' : '#82e0aa'} />
-                      <span style={{ fontSize: '11px', color: pmDone ? '#66666688' : '#888', textDecoration: pmDone ? 'line-through' : 'none' }}>
-                        {pmType === 'surf' ? 'Surf' : pmType === 'softball' ? 'Softball' : ALT_ACTIVITIES[d.pm.activity]?.name || 'Active'}
-                      </span>
-                    </div>
-                  )}
-                  {!hasGym && !hasPM && <div style={{ fontSize: '10px', color: '#333' }}>Rest</div>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
-      {/* Recent logged sessions */}
-      {visibleSessions.length > 0 && (
-        <div style={{ backgroundColor: '#0c0c10', borderRadius: '14px', padding: mobile ? '16px' : '20px', border: '1px solid #1a1a1f', marginBottom: '28px' }}>
-          <div style={{ fontSize: '10px', letterSpacing: '2px', color: '#48dbfb', fontFamily: "'JetBrains Mono',monospace", marginBottom: '14px' }}>RECENT SESSIONS</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {visibleSessions.map((s, i) => {
-              const d = new Date(s.date + 'T12:00:00');
-              const ds = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-              const color = getSessionColor(s.activityKey);
-              const stokeData = s.stoke ? STOKE_LEVELS.find(sl => sl.value === s.stoke) : null;
-              return (
-                <div key={i} style={{ display: 'flex', alignItems: 'stretch', gap: '0', borderRadius: '10px', overflow: 'hidden', border: '1px solid #181820' }}>
-                  <div style={{ width: '4px', backgroundColor: color, flexShrink: 0 }} />
-                  <div style={{ flex: 1, padding: '10px 12px', backgroundColor: '#111116' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '9px', letterSpacing: '1px', color: color, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{getSessionLabel(s.activityKey)}</span>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#ccc' }}>
-                          {s.activityKey === 'surf' && s.spot ? s.spot : s.activityKey === 'gym' ? `Workout ${s.program || ''}` : s.activityKey.charAt(0).toUpperCase() + s.activityKey.slice(1)}
-                        </span>
+          {/* Streaks */}
+          <DashSection title="STREAKS" color="#f39c12" mobile={mobile}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: mobile ? '24px' : '30px', fontWeight: 700, color: currentStreak > 0 ? '#f39c12' : '#333', fontFamily: "'JetBrains Mono',monospace" }}>{currentStreak}</div>
+                <div style={{ fontSize: '9px', color: '#666', letterSpacing: '0.5px', fontFamily: "'JetBrains Mono',monospace" }}>current</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: mobile ? '24px' : '30px', fontWeight: 700, color: longestStreak > 0 ? '#f39c12' : '#333', fontFamily: "'JetBrains Mono',monospace" }}>{longestStreak}</div>
+                <div style={{ fontSize: '9px', color: '#666', letterSpacing: '0.5px', fontFamily: "'JetBrains Mono',monospace" }}>longest</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: mobile ? '24px' : '30px', fontWeight: 700, color: consistencyPct > 0 ? '#f39c12' : '#333', fontFamily: "'JetBrains Mono',monospace" }}>{consistencyPct}%</div>
+                <div style={{ fontSize: '9px', color: '#666', letterSpacing: '0.5px', fontFamily: "'JetBrains Mono',monospace" }}>weekly consistency</div>
+              </div>
+            </div>
+            <div style={{ fontSize: '10px', color: '#444', marginTop: '10px', fontFamily: "'JetBrains Mono',monospace", textAlign: 'center' }}>
+              Streak = consecutive days with any logged activity. Consistency = weeks with 5+ active days.
+            </div>
+          </DashSection>
+
+          {/* This Month */}
+          <DashSection title={`${monthName.toUpperCase()} SUMMARY`} color="#48dbfb" mobile={mobile}>
+            <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '10px' }}>
+              <div style={{ backgroundColor: '#111116', borderRadius: '10px', padding: '12px', textAlign: 'center', border: '1px solid #181820' }}>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff', fontFamily: "'JetBrains Mono',monospace" }}>{monthAllActivities.length}</div>
+                <div style={{ fontSize: '9px', color: '#666', fontFamily: "'JetBrains Mono',monospace" }}>total</div>
+              </div>
+              <div style={{ backgroundColor: '#111116', borderRadius: '10px', padding: '12px', textAlign: 'center', border: '1px solid #181820' }}>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: '#48dbfb', fontFamily: "'JetBrains Mono',monospace" }}>{monthSurf.length}</div>
+                <div style={{ fontSize: '9px', color: '#666', fontFamily: "'JetBrains Mono',monospace" }}>surfs</div>
+              </div>
+              <div style={{ backgroundColor: '#111116', borderRadius: '10px', padding: '12px', textAlign: 'center', border: '1px solid #181820' }}>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: '#00d4aa', fontFamily: "'JetBrains Mono',monospace" }}>{monthGym.length}</div>
+                <div style={{ fontSize: '9px', color: '#666', fontFamily: "'JetBrains Mono',monospace" }}>gym</div>
+              </div>
+              <div style={{ backgroundColor: '#111116', borderRadius: '10px', padding: '12px', textAlign: 'center', border: '1px solid #181820' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: topSpot ? '#ccc' : '#333', fontFamily: "'Instrument Sans',sans-serif" }}>{topSpot ? topSpot[0] : '—'}</div>
+                <div style={{ fontSize: '9px', color: '#666', fontFamily: "'JetBrains Mono',monospace", marginTop: '2px' }}>top spot</div>
+              </div>
+            </div>
+          </DashSection>
+
+          {/* This week */}
+          {curWeek && (
+            <DashSection title={`THIS WEEK (${curWeek.isDeload ? 'DELOAD' : `M${curWeek.mesocycle} W${curWeek.weekInMeso}`})`} color={curWeek.isDeload ? '#e6b800' : '#00d4aa'} mobile={mobile}>
+              <div style={{ display: 'flex', gap: mobile ? '8px' : '16px', flexWrap: 'wrap' }}>
+                {curWeek.days.map((d, i) => {
+                  const key = dateKey(d.date);
+                  const dayP = progress[key] || {};
+                  const isToday = now.toDateString() === d.date.toDateString();
+                  const hasGym = d.am && d.am.type === 'gym';
+                  const hasPM = d.pm !== null;
+                  const gymDone = dayP.gym;
+                  const pmType = d.pm?.type;
+                  const pmDone = pmType === 'surf' ? dayP.surf : pmType === 'softball' ? dayP.softball : dayP.alt;
+                  const allDone = (!hasGym || gymDone) && (!hasPM || pmDone);
+                  const isPast = d.date < now && !isToday;
+                  return (
+                    <div key={i} style={{ flex: mobile ? '1 1 calc(50% - 4px)' : '1 1 0', minWidth: mobile ? 'calc(50% - 4px)' : '100px', backgroundColor: isToday ? '#1a1a2e' : '#111116', borderRadius: '10px', padding: '10px', border: isToday ? '1px solid #00d4aa33' : '1px solid #181820', position: 'relative', opacity: isPast && !allDone ? 0.5 : 1 }}>
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: isToday ? '#00d4aa' : '#555', fontFamily: "'JetBrains Mono',monospace", marginBottom: '6px' }}>
+                        {d.dayName.toUpperCase()} {isToday && <span style={{ fontSize: '8px', color: '#00d4aa88' }}>TODAY</span>}
                       </div>
-                      <span style={{ fontSize: '10px', color: '#555', fontFamily: "'JetBrains Mono',monospace" }}>{ds}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {s.duration && <span style={{ fontSize: '10px', color: '#777', fontFamily: "'JetBrains Mono',monospace" }}>{s.duration >= 60 ? `${Math.floor(s.duration/60)}h${s.duration%60 ? `${s.duration%60}m` : ''}` : `${s.duration}m`}</span>}
-                      {s.board && <span style={{ fontSize: '10px', color: '#555' }}>{s.board}</span>}
-                      {stokeData && (
-                        <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
-                          {STOKE_LEVELS.map(sl => (
-                            <div key={sl.value} style={{ width: '12px', height: '4px', borderRadius: '2px', backgroundColor: sl.value <= s.stoke ? sl.color : '#1a1a1f' }} />
-                          ))}
-                          <span style={{ fontSize: '9px', color: stokeData.color, fontFamily: "'JetBrains Mono',monospace", marginLeft: '4px' }}>{stokeData.label}</span>
+                      {hasGym && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          <CheckBtn checked={!!gymDone} onClick={() => toggle(d.date, 'gym', { program: d.am.program })} size={18} color="#00d4aa" />
+                          <span style={{ fontSize: '11px', color: gymDone ? '#00d4aa88' : '#888', textDecoration: gymDone ? 'line-through' : 'none' }}>Gym {d.am.program}</span>
                         </div>
                       )}
+                      {hasPM && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <CheckBtn checked={!!pmDone} onClick={() => toggle(d.date, pmType === 'surf' ? 'surf' : pmType === 'softball' ? 'softball' : 'alt', { activity: d.pm?.activity })} size={18} color={pmType === 'surf' ? '#48dbfb' : pmType === 'softball' ? '#c39bd3' : '#82e0aa'} />
+                          <span style={{ fontSize: '11px', color: pmDone ? '#66666688' : '#888', textDecoration: pmDone ? 'line-through' : 'none' }}>
+                            {pmType === 'surf' ? 'Surf' : pmType === 'softball' ? 'Softball' : ALT_ACTIVITIES[d.pm.activity]?.name || 'Active'}
+                          </span>
+                        </div>
+                      )}
+                      {!hasGym && !hasPM && <div style={{ fontSize: '10px', color: '#333' }}>Rest</div>}
                     </div>
-                    {s.notes && <div style={{ fontSize: '11px', color: '#666', marginTop: '4px', lineHeight: 1.4 }}>{s.notes}</div>}
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </DashSection>
+          )}
+
+          {/* Weekly trend line chart */}
+          <DashSection title="WEEKLY TREND" color="#555" mobile={mobile}>
+            <WeeklyTrendChart schedule={schedule} progress={progress} mobile={mobile} />
+          </DashSection>
+
+          {/* Training heat map */}
+          <DashSection title="TRAINING CALENDAR" color="#555" mobile={mobile}>
+            <TrainingHeatMap progress={progress} mobile={mobile} />
+          </DashSection>
+
+          {/* Reset */}
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
+            {!showReset ? (
+              <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: '#333', fontSize: '11px', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>Reset all progress</button>
+            ) : (
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: '#888' }}>Are you sure?</span>
+                <button onClick={() => { reset(); setShowReset(false); }} style={{ background: '#ff4757', border: 'none', color: '#fff', fontSize: '11px', padding: '6px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>Yes, reset</button>
+                <button onClick={() => setShowReset(false)} style={{ background: '#222', border: 'none', color: '#888', fontSize: '11px', padding: '6px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>Cancel</button>
+              </div>
+            )}
           </div>
-        </div>
+        </>
       )}
 
-      <div style={{ backgroundColor: '#0c0c10', borderRadius: '14px', padding: mobile ? '12px' : '20px', border: '1px solid #1a1a1f', marginBottom: '28px' }}>
-        <ProgressChart schedule={schedule} progress={progress} mobile={mobile} />
-      </div>
-
-      <div style={{ textAlign: 'center', marginTop: '20px' }}>
-        {!showReset ? (
-          <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: '#333', fontSize: '11px', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>Reset all progress</button>
-        ) : (
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', color: '#888' }}>Are you sure?</span>
-            <button onClick={() => { reset(); setShowReset(false); }} style={{ background: '#ff4757', border: 'none', color: '#fff', fontSize: '11px', padding: '6px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>Yes, reset</button>
-            <button onClick={() => setShowReset(false)} style={{ background: '#222', border: 'none', color: '#888', fontSize: '11px', padding: '6px 16px', borderRadius: '6px', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>Cancel</button>
+      {/* ═══ SURF TAB ═══ */}
+      {subTab === 'surf' && (
+        <>
+          {/* Surf stat cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <StatCard label="TOTAL SURFS" value={surfSessions.length} sub="all time" color="#48dbfb" mobile={mobile} />
+            <StatCard label="AVG DURATION" value={avgSurfDuration > 0 ? `${avgSurfDuration}m` : '—'} sub="per session" color="#48dbfb" mobile={mobile} />
+            <StatCard label="AVG STOKE" value={avgStoke > 0 ? avgStoke : '—'} sub="out of 5" color={avgStoke >= 4 ? '#00d4aa' : avgStoke >= 3 ? '#82e0aa' : '#e6b800'} mobile={mobile} />
+            <StatCard label={monthName.toUpperCase()} value={monthSurf.length} sub="surfs this month" color="#48dbfb" mobile={mobile} />
           </div>
-        )}
-      </div>
+
+          {/* Spot frequency */}
+          <DashSection title="SPOT FREQUENCY" color="#48dbfb" mobile={mobile}>
+            <FrequencyBars items={spotFreq} color="#48dbfb" mobile={mobile} />
+          </DashSection>
+
+          {/* Board usage */}
+          <DashSection title="BOARD USAGE" color="#48dbfb" mobile={mobile}>
+            <FrequencyBars items={boardFreq} color="#48dbfb" mobile={mobile} />
+          </DashSection>
+
+          {/* Recent surf sessions */}
+          {surfSessions.length > 0 && (
+            <DashSection title="RECENT SURF SESSIONS" color="#48dbfb" mobile={mobile}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {surfSessions.slice(0, 10).map((s, i) => <SessionRow key={i} s={s} />)}
+              </div>
+            </DashSection>
+          )}
+        </>
+      )}
+
+      {/* ═══ GYM TAB ═══ */}
+      {subTab === 'gym' && (
+        <>
+          {/* Gym stat cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <StatCard label="TOTAL GYM" value={gymSessions.length} sub="all time" color="#00d4aa" mobile={mobile} />
+            <StatCard label="AVG DURATION" value={avgGymDuration > 0 ? `${avgGymDuration}m` : '—'} sub="per session" color="#00d4aa" mobile={mobile} />
+            <StatCard label={monthName.toUpperCase()} value={monthGym.length} sub="gym this month" color="#00d4aa" mobile={mobile} />
+            <StatCard label="COMPLETION" value={totalGym > 0 ? `${Math.round(doneGym / totalGym * 100)}%` : '—'} sub={`${doneGym}/${totalGym} scheduled`} color="#00d4aa" mobile={mobile} />
+          </div>
+
+          {/* Program breakdown */}
+          <DashSection title="PROGRAM BREAKDOWN" color="#00d4aa" mobile={mobile}>
+            <FrequencyBars items={gymProgFreq} color="#00d4aa" mobile={mobile} />
+          </DashSection>
+
+          {/* Recent gym sessions */}
+          {gymSessions.length > 0 && (
+            <DashSection title="RECENT GYM SESSIONS" color="#00d4aa" mobile={mobile}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {gymSessions.slice(0, 10).map((s, i) => <SessionRow key={i} s={s} />)}
+              </div>
+            </DashSection>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -2386,6 +2763,12 @@ function SessionSummarySheet({ data, onClose, onViewDetail, mobile }) {
             <div style={{backgroundColor:"#0c0c10",borderRadius:"10px",padding:"12px 16px",border:"1px solid #1a1a1f",flex:"2 1 0",minWidth:"120px",textAlign:"center"}}>
               <div style={{fontSize:"9px",letterSpacing:"1px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"4px"}}>BOARD</div>
               <div style={{fontSize:"13px",fontWeight:600,color:"#fff"}}>{log.board}</div>
+            </div>
+          )}
+          {activityKey === 'softball' && log.result && (
+            <div style={{backgroundColor:"#0c0c10",borderRadius:"10px",padding:"12px 16px",border:`1px solid ${log.result === 'W' ? '#00d4aa33' : '#ff475733'}`,flex:"1 1 0",minWidth:"80px",textAlign:"center"}}>
+              <div style={{fontSize:"9px",letterSpacing:"1px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"4px"}}>RESULT</div>
+              <div style={{fontSize:"18px",fontWeight:700,color:log.result === 'W' ? '#00d4aa' : '#ff4757',fontFamily:"'JetBrains Mono',monospace"}}>{log.result === 'W' ? 'Win' : 'Loss'}</div>
             </div>
           )}
         </div>
@@ -2450,7 +2833,7 @@ export default function SurfTrainingSchedule() {
   const [openActivity, setOpenActivity] = useState(null);
   const [swapTarget, setSwapTarget] = useState(null);
   const { progress, toggle, isComplete, reset } = useProgress();
-  const { logs: activityLogs, saveLog, removeLog, getLog } = useActivityLog();
+  const { logs: activityLogs, saveLog, removeLog } = useActivityLog();
   const [overrides, setOverrides] = useLocalState('surf-overrides', {});
   const [swaps, setSwaps] = useLocalState('surf-swaps', {});
 
@@ -2606,7 +2989,7 @@ export default function SurfTrainingSchedule() {
             </div>
           </>
         )}
-        {activeTab === "progress" && <ProgressView schedule={schedule} progress={progress} isComplete={isComplete} toggle={handleToggle} mobile={mobile} reset={reset} activityLogs={activityLogs} />}
+        {activeTab === "progress" && <ProgressView schedule={schedule} progress={progress} toggle={handleToggle} mobile={mobile} reset={reset} activityLogs={activityLogs} />}
         {activeTab === "workouts" && <><ProgramOverview onOpenWorkout={setOpenWorkout} mobile={mobile} /><AltActivities mobile={mobile} onOpenActivity={setOpenActivity} /></>}
         {activeTab === "philosophy" && <PhilosophySection mobile={mobile} />}
       </div>
