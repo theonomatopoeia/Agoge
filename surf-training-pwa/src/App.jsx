@@ -1299,6 +1299,23 @@ function ActivityDetailModal({ activityKey, onClose, mobile }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CUSTOM ACTIVITY MOTIVATION MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+function CustomMotivationModal({ onClose, mobile }) {
+  return (
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,backgroundColor:"rgba(0,0,0,0.9)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:"32px",backdropFilter:"blur(12px)"}} onClick={onClose}>
+      <div style={{textAlign:"center",maxWidth:"500px"}} onClick={e => e.stopPropagation()}>
+        <div style={{fontSize:mobile?"32px":"48px",fontWeight:800,color:"#f39c12",lineHeight:1.2,fontFamily:"'Instrument Sans',sans-serif",letterSpacing:"-1px",textTransform:"uppercase",marginBottom:"24px"}}>
+          That's good boy keep attacking
+        </div>
+        <button onClick={onClose} style={{padding:"12px 32px",backgroundColor:"#f39c1222",border:"1px solid #f39c1244",borderRadius:"12px",color:"#f39c12",fontSize:"13px",fontFamily:"'JetBrains Mono',monospace",cursor:"pointer",marginTop:"16px"}}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DAY EDIT MODAL (Phase 2 — tap day to edit schedule)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1313,6 +1330,7 @@ const ACTIVITY_OPTIONS = [
   { label: "AM Stretch", value: { type: "alt", activity: "stretch_short" }, color: "#e6b800" },
   { label: "Deep Mobility", value: { type: "alt", activity: "stretch_full" }, color: "#e6b800" },
   { label: "Softball", value: { type: "softball", label: "Softball (or Surf)" }, color: "#c39bd3" },
+  { label: "Custom", value: { type: "custom", label: "" }, color: "#f39c12" },
   { label: "Rest (none)", value: null, color: "#555" },
 ];
 
@@ -1366,7 +1384,7 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
     onSubmit(logData);
   };
 
-  const title = isSurf ? "Log Surf Session" : isGym ? "Log Gym Session" : isSoftball ? "Log Softball" : "Log Activity";
+  const title = isSurf ? "Log Surf Session" : isGym ? "Log Gym Session" : isSoftball ? "Log Softball" : context?.activity ? `Log ${context.activity}` : "Log Activity";
   const accentColor = isSurf ? "#48dbfb" : isGym ? "#00d4aa" : isSoftball ? "#c39bd3" : "#82e0aa";
 
   // Picker sub-component
@@ -1593,6 +1611,7 @@ function DayEditModal({ day, onSave, onClose, mobile }) {
     if (slot.type === "gym") return `Gym ${slot.program}`;
     if (slot.type === "surf") return "Surf";
     if (slot.type === "softball") return "Softball";
+    if (slot.type === "custom") return slot.label || "Custom";
     if (slot.type === "alt") return ALT_ACTIVITIES[slot.activity]?.name || "Active";
     return "Unknown";
   };
@@ -1602,26 +1621,46 @@ function DayEditModal({ day, onSave, onClose, mobile }) {
     if (slot.type === "gym") return "#00d4aa";
     if (slot.type === "surf") return "#48dbfb";
     if (slot.type === "softball") return "#c39bd3";
+    if (slot.type === "custom") return "#f39c12";
     return "#82e0aa";
   };
 
-  const SlotPicker = ({ label, value, onChange }) => (
-    <div style={{marginBottom:"20px"}}>
-      <div style={{fontSize:"10px",letterSpacing:"2px",color:"#888",fontFamily:"'JetBrains Mono',monospace",marginBottom:"10px"}}>{label}</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>
-        {ACTIVITY_OPTIONS.map((opt, i) => {
-          const isSelected = JSON.stringify(value) === JSON.stringify(opt.value);
-          return (
-            <button key={i} onClick={() => onChange(opt.value)} style={{
-              padding:"8px 12px",borderRadius:"8px",border:isSelected?`2px solid ${opt.color}`:"1px solid #222",
-              backgroundColor:isSelected?`${opt.color}15`:"#0c0c10",color:isSelected?opt.color:"#888",
-              fontSize:"11px",fontFamily:"'JetBrains Mono',monospace",cursor:"pointer",transition:"all 0.15s"
-            }}>{opt.label}</button>
-          );
-        })}
+  const SlotPicker = ({ label, value, onChange }) => {
+    const isCustom = value?.type === "custom";
+    return (
+      <div style={{marginBottom:"20px"}}>
+        <div style={{fontSize:"10px",letterSpacing:"2px",color:"#888",fontFamily:"'JetBrains Mono',monospace",marginBottom:"10px"}}>{label}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>
+          {ACTIVITY_OPTIONS.map((opt, i) => {
+            const isSelected = opt.value?.type === "custom"
+              ? isCustom
+              : JSON.stringify(value) === JSON.stringify(opt.value);
+            return (
+              <button key={i} onClick={() => onChange(opt.value?.type === "custom" ? { type: "custom", label: "" } : opt.value)} style={{
+                padding:"8px 12px",borderRadius:"8px",border:isSelected?`2px solid ${opt.color}`:"1px solid #222",
+                backgroundColor:isSelected?`${opt.color}15`:"#0c0c10",color:isSelected?opt.color:"#888",
+                fontSize:"11px",fontFamily:"'JetBrains Mono',monospace",cursor:"pointer",transition:"all 0.15s"
+              }}>{opt.label}</button>
+            );
+          })}
+        </div>
+        {isCustom && (
+          <input
+            type="text"
+            value={value.label || ""}
+            onChange={e => onChange({ type: "custom", label: e.target.value })}
+            placeholder="What are you doing? (e.g. Beach Run)"
+            autoFocus
+            style={{
+              width:"100%",marginTop:"10px",padding:"12px 14px",backgroundColor:"#0c0c10",
+              border:"1px solid #f39c1244",borderRadius:"10px",color:"#fff",fontSize:"14px",
+              fontFamily:"'Instrument Sans',sans-serif",outline:"none",
+            }}
+          />
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,backgroundColor:"rgba(0,0,0,0.85)",zIndex:1000,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",padding:mobile?0:"20px",backdropFilter:"blur(8px)"}} onClick={onClose}>
@@ -1647,7 +1686,7 @@ function DayEditModal({ day, onSave, onClose, mobile }) {
         <SlotPicker label="PM ACTIVITY" value={pm} onChange={setPm} />
 
         <div style={{display:"flex",gap:"10px",marginTop:"8px"}}>
-          <button onClick={() => { onSave(am, pm); onClose(); }} style={{flex:1,padding:"14px",backgroundColor:"#00d4aa",border:"none",borderRadius:"12px",color:"#08080c",fontSize:"13px",fontWeight:700,cursor:"pointer",fontFamily:"'JetBrains Mono',monospace"}}>Save Changes</button>
+          <button onClick={() => { onSave(am, pm); onClose(); }} disabled={(am?.type === "custom" && !am?.label?.trim()) || (pm?.type === "custom" && !pm?.label?.trim())} style={{flex:1,padding:"14px",backgroundColor:((am?.type === "custom" && !am?.label?.trim()) || (pm?.type === "custom" && !pm?.label?.trim())) ? "#333" : "#00d4aa",border:"none",borderRadius:"12px",color:((am?.type === "custom" && !am?.label?.trim()) || (pm?.type === "custom" && !pm?.label?.trim())) ? "#666" : "#08080c",fontSize:"13px",fontWeight:700,cursor:((am?.type === "custom" && !am?.label?.trim()) || (pm?.type === "custom" && !pm?.label?.trim())) ? "not-allowed" : "pointer",fontFamily:"'JetBrains Mono',monospace"}}>Save Changes</button>
           <button onClick={() => { onSave("__reset__", "__reset__"); onClose(); }} style={{padding:"14px 16px",backgroundColor:"#1a1a1f",border:"1px solid #333",borderRadius:"12px",color:"#888",fontSize:"11px",cursor:"pointer",fontFamily:"'JetBrains Mono',monospace"}}>Reset</button>
         </div>
       </div>
@@ -1677,12 +1716,14 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
     if (!hasPM) return "";
     if (pmType === "surf") return "\ud83c\udfc4 Surf";
     if (pmType === "softball") return "\ud83e\udd4e Softball";
+    if (pmType === "custom") return day.pm.label || "Custom";
     const act = ALT_ACTIVITIES[day.pm.activity];
     return act ? `${act.icon} ${act.name}` : "Active";
   };
 
-  const pmColor = pmType==='surf'?'#48dbfb':pmType==='softball'?'#c39bd3':'#82e0aa';
-  const getAmColor = () => { const a = ALT_ACTIVITIES[day.am?.activity]; return a?.color || '#e6b800'; };
+  const pmColor = pmType==='surf'?'#48dbfb':pmType==='softball'?'#c39bd3':pmType==='custom'?'#f39c12':'#82e0aa';
+  const getAmColor = () => { if (day.am?.type === 'custom') return '#f39c12'; const a = ALT_ACTIVITIES[day.am?.activity]; return a?.color || '#e6b800'; };
+  const getAmLabel = () => { if (day.am?.type === 'custom') return day.am.label || 'Custom'; const a = ALT_ACTIVITIES[day.am?.activity]; return a ? `${a.icon} ${a.name}` : 'Activity'; };
 
   if (mobile) {
     return (
@@ -1709,15 +1750,15 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
           )}
           {hasAM && day.am.type !== "gym" && (
             <button onClick={() => onOpenActivity(day.am.activity || day.am.type)} style={{backgroundColor:`${getAmColor()}12`,borderRadius:"6px",padding:"4px 10px",border:`1px solid ${getAmColor()}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:"6px"}}>
-              <span style={{fontSize:"11px",fontWeight:600,color:"#ccc"}}>{ALT_ACTIVITIES[day.am?.activity]?.icon} {ALT_ACTIVITIES[day.am?.activity]?.name || "Activity"}</span>
+              <span style={{fontSize:"11px",fontWeight:600,color:"#ccc"}}>{getAmLabel()}</span>
               <span style={{fontSize:"10px",color:`${getAmColor()}88`}}>&rarr;</span>
             </button>
           )}
           {hasPM && (
             <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-              {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey, { activity: day.pm?.activity })} size={18} color={pmColor}/>}
+              {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey, { activity: pmType === 'custom' ? day.pm?.label : day.pm?.activity })} size={18} color={pmColor}/>}
               <button onClick={() => {
-                    if (pmDone && dayLogs[pmKey]) { onOpenLog && onOpenLog({ date: day.date, activityKey: pmKey, log: dayLogs[pmKey], context: { activity: day.pm?.activity } }); }
+                    if (pmDone && dayLogs[pmKey]) { onOpenLog && onOpenLog({ date: day.date, activityKey: pmKey, log: dayLogs[pmKey], context: { activity: pmType === 'custom' ? day.pm?.label : day.pm?.activity } }); }
                     else { onOpenActivity(pmActivity); }
                   }} style={{backgroundColor:`${pmColor}12`,borderRadius:"6px",padding:"4px 10px",border:`1px solid ${pmColor}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:"6px",opacity:pmDone?0.5:1}}>
                 <span style={{fontSize:"11px",fontWeight:600,color:pmDone?"#55555588":"#ccc",textDecoration:pmDone?"line-through":"none"}}>{getPmLabel()}</span>
@@ -1753,17 +1794,17 @@ function DayCard({ day, onOpenWorkout, mobile, progress, toggle, onEditDay, onOp
       {hasAM && day.am.type !== "gym" && (
         <button onClick={(e) => { e.stopPropagation(); onOpenActivity(day.am.activity || day.am.type); }} style={{backgroundColor:`${getAmColor()}08`,borderRadius:"8px",padding:"8px",border:`1px solid ${getAmColor()}15`,cursor:"pointer",textAlign:"left",width:"100%"}}>
           <div style={{fontSize:"9px",color:getAmColor(),letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px"}}>AM</div>
-          <div style={{fontSize:"12px",fontWeight:500,color:"#aaa"}}>{ALT_ACTIVITIES[day.am?.activity]?.icon} {ALT_ACTIVITIES[day.am?.activity]?.name}</div>
+          <div style={{fontSize:"12px",fontWeight:500,color:"#aaa"}}>{getAmLabel()}</div>
         </button>
       )}
       {hasPM && (
         <div style={{display:"flex",alignItems:"center",gap:"6px"}}>
-          {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey, { activity: day.pm?.activity })} size={18} color={pmColor}/>}
+          {toggle && <CheckBtn checked={!!pmDone} onClick={() => toggle(day.date,pmKey, { activity: pmType === 'custom' ? day.pm?.label : day.pm?.activity })} size={18} color={pmColor}/>}
           <button onClick={(e) => { e.stopPropagation();
-                if (pmDone && dayLogs[pmKey]) { onOpenLog && onOpenLog({ date: day.date, activityKey: pmKey, log: dayLogs[pmKey], context: { activity: day.pm?.activity } }); }
+                if (pmDone && dayLogs[pmKey]) { onOpenLog && onOpenLog({ date: day.date, activityKey: pmKey, log: dayLogs[pmKey], context: { activity: pmType === 'custom' ? day.pm?.label : day.pm?.activity } }); }
                 else { onOpenActivity(pmActivity); }
               }} style={{flex:1,backgroundColor:`${pmColor}0a`,borderRadius:"8px",padding:"8px",border:`1px solid ${pmColor}15`,opacity:pmDone?0.5:1,cursor:"pointer",textAlign:"left"}}>
-            <div style={{fontSize:"9px",letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px",color:pmColor}}>{isWE ? "" : "PM "}{pmType==="surf"?"SURF":pmType==="softball"?"SOFTBALL":"ACTIVE"}</div>
+            <div style={{fontSize:"9px",letterSpacing:"1.5px",fontFamily:"'JetBrains Mono',monospace",marginBottom:"2px",color:pmColor}}>{isWE ? "" : "PM "}{pmType==="surf"?"SURF":pmType==="softball"?"SOFTBALL":pmType==="custom"?"CUSTOM":"ACTIVE"}</div>
             <div style={{fontSize:"12px",fontWeight:500,color:"#aaa",textDecoration:pmDone?"line-through":"none"}}>{getPmLabel()}</div>
           </button>
         </div>
@@ -2611,12 +2652,336 @@ function SessionSummarySheet({ data, onClose, onViewDetail, mobile }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// HOME DASHBOARD (Phase 7 — time-aware landing page)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function HomeView({ schedule, progress, toggle, mobile, activityLogs, onOpenWorkout, onOpenActivity, onEditDay, onOpenLog, onNavigate }) {
+  const now = new Date();
+  const todayStr = dateKey(now);
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
+  const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
+  const dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+
+  // Find current week and today
+  const curWeek = schedule.find(w => {
+    const end = new Date(w.startDate); end.setDate(end.getDate() + 6);
+    return now >= w.startDate && now <= end;
+  });
+  const todayDay = curWeek?.days.find(d => d.date.toDateString() === now.toDateString());
+  const dayP = (progress && progress[todayStr]) || {};
+  const dayLogs = (activityLogs && activityLogs[todayStr]) || {};
+
+  // Week progress
+  let weekGym = 0, weekGymDone = 0, weekSurf = 0, weekSurfDone = 0, weekOther = 0, weekOtherDone = 0;
+  if (curWeek) {
+    curWeek.days.forEach(d => {
+      const dk = dateKey(d.date);
+      const dp = progress[dk] || {};
+      if (d.am && d.am.type === 'gym') { weekGym++; if (dp.gym) weekGymDone++; }
+      if (d.pm) {
+        if (d.pm.type === 'surf') { weekSurf++; if (dp.surf) weekSurfDone++; }
+        else if (d.pm.type === 'softball') { weekOther++; if (dp.softball) weekOtherDone++; }
+        else { weekOther++; if (dp.alt) weekOtherDone++; }
+      }
+    });
+  }
+
+  // Streak
+  const activeDates = new Set();
+  if (progress) {
+    Object.entries(progress).forEach(([dk, dp]) => {
+      if (Object.values(dp).some(Boolean)) activeDates.add(dk);
+    });
+  }
+  let currentStreak = 0;
+  const yesterdayD = new Date(now); yesterdayD.setDate(yesterdayD.getDate() - 1);
+  let checkDate = new Date(now);
+  if (!activeDates.has(todayStr) && activeDates.has(dateKey(yesterdayD))) {
+    checkDate = new Date(yesterdayD);
+  } else if (!activeDates.has(todayStr)) {
+    checkDate = null;
+  }
+  if (checkDate) {
+    const d = new Date(checkDate);
+    while (activeDates.has(dateKey(d))) { currentStreak++; d.setDate(d.getDate() - 1); }
+  }
+
+  // Consistency (last 4 weeks)
+  let consistentWeeks = 0;
+  const todayDow = now.getDay();
+  const thisWeekSunday = new Date(now);
+  thisWeekSunday.setDate(thisWeekSunday.getDate() - todayDow);
+  for (let w = 1; w <= 4; w++) {
+    const weekStart = new Date(thisWeekSunday);
+    weekStart.setDate(weekStart.getDate() - w * 7);
+    let active = 0;
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(weekStart);
+      day.setDate(day.getDate() + d);
+      if (activeDates.has(dateKey(day))) active++;
+    }
+    if (active >= 5) consistentWeeks++;
+  }
+  const consistencyPct = Math.round((consistentWeeks / 4) * 100);
+
+  // Next upcoming uncompleted session
+  let nextSession = null;
+  for (const week of schedule) {
+    for (const d of week.days) {
+      if (d.date <= now && d.date.toDateString() !== now.toDateString()) continue;
+      if (d.date.toDateString() === now.toDateString()) continue; // skip today, shown above
+      const dk = dateKey(d.date);
+      const dp = progress[dk] || {};
+      if (d.am && d.am.type === 'gym' && !dp.gym) {
+        nextSession = { date: d.date, type: 'gym', label: `Gym ${d.am.program}`, color: '#00d4aa', program: d.am.program };
+        break;
+      }
+      if (d.pm && !dp[d.pm.type === 'surf' ? 'surf' : d.pm.type === 'softball' ? 'softball' : 'alt']) {
+        const pmLabel = d.pm.type === 'surf' ? 'Surf' : d.pm.type === 'softball' ? 'Softball' : d.pm.type === 'custom' ? (d.pm.label || 'Custom') : (ALT_ACTIVITIES[d.pm.activity]?.name || 'Active');
+        const pmColor = d.pm.type === 'surf' ? '#48dbfb' : d.pm.type === 'softball' ? '#c39bd3' : d.pm.type === 'custom' ? '#f39c12' : '#82e0aa';
+        nextSession = { date: d.date, type: d.pm.type, label: pmLabel, color: pmColor };
+        break;
+      }
+    }
+    if (nextSession) break;
+  }
+
+  // Today's activities info
+  const todayHasGym = todayDay?.am?.type === 'gym';
+  const todayGymDone = dayP.gym;
+  const todayHasPM = todayDay?.pm != null;
+  const todayPmType = todayDay?.pm?.type;
+  const todayPmKey = todayPmType === 'surf' ? 'surf' : todayPmType === 'softball' ? 'softball' : 'alt';
+  const todayPmDone = todayPmType === 'surf' ? dayP.surf : todayPmType === 'softball' ? dayP.softball : dayP.alt;
+  const todayAllDone = (!todayHasGym || todayGymDone) && (!todayHasPM || todayPmDone);
+
+  const getTodayPmLabel = () => {
+    if (!todayDay?.pm) return "";
+    if (todayPmType === "surf") return "Surf";
+    if (todayPmType === "softball") return "Softball";
+    if (todayPmType === "custom") return todayDay.pm.label || "Custom";
+    const act = ALT_ACTIVITIES[todayDay.pm?.activity];
+    return act ? act.name : "Active";
+  };
+  const todayPmColor = todayPmType === 'surf' ? '#48dbfb' : todayPmType === 'softball' ? '#c39bd3' : todayPmType === 'custom' ? '#f39c12' : '#82e0aa';
+
+  const ProgressBar = ({ done, total, color }) => (
+    <div style={{flex:1,height:"6px",backgroundColor:"#1a1a1f",borderRadius:"3px",overflow:"hidden"}}>
+      <div style={{height:"100%",width:`${total > 0 ? (done/total)*100 : 0}%`,backgroundColor:color,borderRadius:"3px",transition:"width 0.4s ease"}} />
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Greeting */}
+      <div style={{marginBottom:mobile?"20px":"28px"}}>
+        <div style={{fontSize:mobile?"22px":"28px",fontWeight:700,color:"#fff",fontFamily:"'Instrument Sans',sans-serif",letterSpacing:"-0.5px"}}>
+          {greeting}, Thomas
+        </div>
+        <div style={{fontSize:mobile?"13px":"14px",color:"#555",marginTop:"4px"}}>{dayOfWeek}, {dateStr}</div>
+      </div>
+
+      {/* Today's Plan */}
+      {todayDay && (
+        <div style={{backgroundColor:"#0c0c10",borderRadius:"16px",border:todayAllDone?"1px solid #00d4aa33":"1px solid #1a1a1f",padding:mobile?"18px":"24px",marginBottom:"16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:todayAllDone?"#00d4aa":"#888",fontFamily:"'JetBrains Mono',monospace"}}>
+              {todayAllDone ? "ALL DONE TODAY" : "TODAY'S PLAN"}
+            </div>
+            <button onClick={() => onEditDay(todayDay)} style={{fontSize:"10px",color:"#555",background:"none",border:"1px solid #222",borderRadius:"6px",padding:"4px 10px",cursor:"pointer",fontFamily:"'JetBrains Mono',monospace"}}>Edit</button>
+          </div>
+
+          {todayHasGym && (
+            <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:todayHasPM?"14px":"0"}}>
+              <CheckBtn checked={!!todayGymDone} onClick={() => toggle(todayDay.date, 'gym', { program: todayDay.am.program })} size={22} color="#00d4aa" />
+              <button onClick={() => {
+                if (todayGymDone && dayLogs.gym) { onOpenLog({ date: todayDay.date, activityKey: 'gym', log: dayLogs.gym, context: { program: todayDay.am.program } }); }
+                else { onOpenWorkout(todayDay.am.program); }
+              }} style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",backgroundColor:"#00d4aa08",borderRadius:"12px",padding:"14px 16px",border:"1px solid #00d4aa15",cursor:"pointer",opacity:todayGymDone?0.5:1}}>
+                <div>
+                  <div style={{fontSize:"9px",letterSpacing:"1.5px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace",marginBottom:"4px"}}>AM GYM</div>
+                  <div style={{fontSize:"15px",fontWeight:600,color:todayGymDone?"#666":"#e8e8ec",textDecoration:todayGymDone?"line-through":"none"}}>{WORKOUT_PROGRAMS[todayDay.am.program]?.name}</div>
+                </div>
+                <span style={{fontSize:"14px",color:"#00d4aa44"}}>&rarr;</span>
+              </button>
+            </div>
+          )}
+
+          {todayHasPM && (
+            <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+              <CheckBtn checked={!!todayPmDone} onClick={() => toggle(todayDay.date, todayPmKey, { activity: todayPmType === 'custom' ? todayDay.pm?.label : todayDay.pm?.activity })} size={22} color={todayPmColor} />
+              <button onClick={() => {
+                if (todayPmDone && dayLogs[todayPmKey]) { onOpenLog({ date: todayDay.date, activityKey: todayPmKey, log: dayLogs[todayPmKey], context: { activity: todayPmType === 'custom' ? todayDay.pm?.label : todayDay.pm?.activity } }); }
+                else { onOpenActivity(todayDay.pm?.activity || todayDay.pm?.type); }
+              }} style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",backgroundColor:`${todayPmColor}08`,borderRadius:"12px",padding:"14px 16px",border:`1px solid ${todayPmColor}15`,cursor:"pointer",opacity:todayPmDone?0.5:1}}>
+                <div>
+                  <div style={{fontSize:"9px",letterSpacing:"1.5px",color:todayPmColor,fontFamily:"'JetBrains Mono',monospace",marginBottom:"4px"}}>{todayPmType === 'surf' ? 'SURF' : todayPmType === 'softball' ? 'SOFTBALL' : todayPmType === 'custom' ? 'CUSTOM' : 'PM ACTIVE'}</div>
+                  <div style={{fontSize:"15px",fontWeight:600,color:todayPmDone?"#666":"#e8e8ec",textDecoration:todayPmDone?"line-through":"none"}}>{getTodayPmLabel()}</div>
+                </div>
+                <span style={{fontSize:"14px",color:`${todayPmColor}44`}}>&rarr;</span>
+              </button>
+            </div>
+          )}
+
+          {!todayHasGym && !todayHasPM && (
+            <div style={{textAlign:"center",padding:"12px",color:"#555",fontSize:"13px"}}>Rest day — recover and recharge.</div>
+          )}
+        </div>
+      )}
+
+      {/* This Week Progress */}
+      {curWeek && (
+        <div style={{backgroundColor:"#0c0c10",borderRadius:"16px",border:"1px solid #1a1a1f",padding:mobile?"18px":"24px",marginBottom:"16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}}>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:"#888",fontFamily:"'JetBrains Mono',monospace"}}>
+              THIS WEEK &mdash; {curWeek.isDeload ? "DELOAD" : `M${curWeek.mesocycle} W${curWeek.weekInMeso}`}
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+            {weekGym > 0 && (
+              <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+                <div style={{width:mobile?"60px":"80px",fontSize:"11px",color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace"}}>{weekGymDone}/{weekGym} Gym</div>
+                <ProgressBar done={weekGymDone} total={weekGym} color="#00d4aa" />
+              </div>
+            )}
+            {weekSurf > 0 && (
+              <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+                <div style={{width:mobile?"60px":"80px",fontSize:"11px",color:"#48dbfb",fontFamily:"'JetBrains Mono',monospace"}}>{weekSurfDone}/{weekSurf} Surf</div>
+                <ProgressBar done={weekSurfDone} total={weekSurf} color="#48dbfb" />
+              </div>
+            )}
+            {weekOther > 0 && (
+              <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+                <div style={{width:mobile?"60px":"80px",fontSize:"11px",color:"#c39bd3",fontFamily:"'JetBrains Mono',monospace"}}>{weekOtherDone}/{weekOther} Other</div>
+                <ProgressBar done={weekOtherDone} total={weekOther} color="#c39bd3" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Streak + Consistency */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px",marginBottom:"16px"}}>
+        <div style={{backgroundColor:"#0c0c10",borderRadius:"16px",border:"1px solid #1a1a1f",padding:mobile?"16px":"20px",textAlign:"center"}}>
+          <div style={{fontSize:mobile?"28px":"34px",fontWeight:700,color:"#00d4aa",fontFamily:"'JetBrains Mono',monospace"}}>{currentStreak}</div>
+          <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginTop:"4px"}}>DAY STREAK</div>
+        </div>
+        <div style={{backgroundColor:"#0c0c10",borderRadius:"16px",border:"1px solid #1a1a1f",padding:mobile?"16px":"20px",textAlign:"center"}}>
+          <div style={{fontSize:mobile?"28px":"34px",fontWeight:700,color:"#48dbfb",fontFamily:"'JetBrains Mono',monospace"}}>{consistencyPct}%</div>
+          <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginTop:"4px"}}>CONSISTENCY</div>
+        </div>
+      </div>
+
+      {/* Next Up */}
+      {nextSession && (
+        <div style={{backgroundColor:"#0c0c10",borderRadius:"16px",border:"1px solid #1a1a1f",padding:mobile?"16px 18px":"20px 24px",marginBottom:"16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontSize:"10px",letterSpacing:"2px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>NEXT UP</div>
+            <div style={{fontSize:"15px",fontWeight:600,color:"#e8e8ec"}}>{nextSession.label}</div>
+            <div style={{fontSize:"11px",color:"#555",marginTop:"2px"}}>{nextSession.date.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
+          </div>
+          <div style={{width:"10px",height:"10px",borderRadius:"5px",backgroundColor:nextSession.color}} />
+        </div>
+      )}
+
+      {/* Quick nav */}
+      <button onClick={() => onNavigate("schedule")} style={{width:"100%",padding:"14px",backgroundColor:"transparent",border:"1px solid #1a1a1f",borderRadius:"12px",color:"#555",fontSize:"12px",fontFamily:"'JetBrains Mono',monospace",cursor:"pointer",marginBottom:"24px",transition:"all 0.15s"}}>
+        See Full Schedule &rarr;
+      </button>
+
+      {/* Data Backup */}
+      <DataBackupSection mobile={mobile} />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA BACKUP (Export / Import)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const BACKUP_KEYS = ['surf-progress', 'surf-activity-log', 'surf-overrides', 'surf-swaps', 'surf-start-date'];
+
+function DataBackupSection({ mobile }) {
+  const [lastExport, setLastExport] = useState(() => {
+    try { return localStorage.getItem('surf-last-export') || null; } catch { return null; }
+  });
+
+  const handleExport = () => {
+    const payload = { exportDate: new Date().toISOString(), appVersion: "agoge-v8" };
+    payload.data = {};
+    BACKUP_KEYS.forEach(key => {
+      try { payload.data[key] = JSON.parse(localStorage.getItem(key) || 'null'); }
+      catch { payload.data[key] = null; }
+    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agoge-backup-${dateKey(new Date())}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    const ts = new Date().toISOString();
+    localStorage.setItem('surf-last-export', ts);
+    setLastExport(ts);
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.target.result);
+          if (!parsed.data || typeof parsed.data !== 'object') {
+            alert('Invalid backup file — missing data.');
+            return;
+          }
+          const keyCount = Object.keys(parsed.data).filter(k => BACKUP_KEYS.includes(k)).length;
+          const exportDate = parsed.exportDate ? new Date(parsed.exportDate).toLocaleDateString() : 'unknown';
+          if (!window.confirm(`Restore backup from ${exportDate}? (${keyCount} data keys found)\n\nThis will replace ALL current data.`)) return;
+          Object.entries(parsed.data).forEach(([key, value]) => {
+            if (BACKUP_KEYS.includes(key) && value !== null) {
+              localStorage.setItem(key, JSON.stringify(value));
+            }
+          });
+          window.location.reload();
+        } catch (err) {
+          alert('Error reading backup: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
+  const lastExportStr = lastExport ? new Date(lastExport).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never";
+
+  return (
+    <div style={{backgroundColor:"#0c0c10",borderRadius:"16px",border:"1px solid #1a1a1f",padding:mobile?"16px 18px":"20px 24px"}}>
+      <div style={{fontSize:"10px",letterSpacing:"2px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"12px"}}>DATA BACKUP</div>
+      <div style={{fontSize:"11px",color:"#444",marginBottom:"14px"}}>Last backup: {lastExportStr}</div>
+      <div style={{display:"flex",gap:"10px"}}>
+        <button onClick={handleExport} style={{flex:1,padding:"12px",backgroundColor:"#1a1a1f",border:"1px solid #333",borderRadius:"10px",color:"#e8e8ec",fontSize:"12px",fontWeight:600,cursor:"pointer",fontFamily:"'JetBrains Mono',monospace"}}>Export</button>
+        <button onClick={handleImport} style={{flex:1,padding:"12px",backgroundColor:"transparent",border:"1px solid #222",borderRadius:"10px",color:"#888",fontSize:"12px",cursor:"pointer",fontFamily:"'JetBrains Mono',monospace"}}>Import</button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════
 
 export default function SurfTrainingSchedule() {
   const mobile = useMobile(480);
-  const [activeTab, setActiveTab] = useState("schedule");
+  const [activeTab, setActiveTab] = useState("home");
   const [openWorkout, setOpenWorkout] = useState(null);
   const [editDay, setEditDay] = useState(null);
   const [openActivity, setOpenActivity] = useState(null);
@@ -2699,7 +3064,8 @@ export default function SurfTrainingSchedule() {
 
       {openWorkout && <WorkoutDetail program={openWorkout} onClose={() => setOpenWorkout(null)} mobile={mobile} swaps={swaps} onRequestSwap={setSwapTarget} />}
       {editDay && <DayEditModal day={editDay} onSave={handleEditDay} onClose={() => setEditDay(null)} mobile={mobile} />}
-      {openActivity && <ActivityDetailModal activityKey={openActivity} onClose={() => setOpenActivity(null)} mobile={mobile} />}
+      {openActivity && openActivity !== 'custom' && <ActivityDetailModal activityKey={openActivity} onClose={() => setOpenActivity(null)} mobile={mobile} />}
+      {openActivity === 'custom' && <CustomMotivationModal onClose={() => setOpenActivity(null)} mobile={mobile} />}
       {swapTarget && (
         <ExerciseSwapSheet
           exerciseName={swapTarget}
@@ -2747,13 +3113,27 @@ export default function SurfTrainingSchedule() {
           Rolling mesocycles. Tap any day to customize. Tap SWAP on exercises.
         </p>
         <div style={{display:"flex",gap:"2px",marginTop:mobile?"16px":"24px",flexWrap:"wrap"}}>
-          {[{key:"schedule",label:"Schedule"},{key:"progress",label:"Progress"},{key:"workouts",label:"Workouts"},{key:"philosophy",label:"Philosophy"}].map(tab => (
+          {[{key:"home",label:"Home"},{key:"schedule",label:"Schedule"},{key:"progress",label:"Progress"},{key:"workouts",label:"Workouts"},{key:"philosophy",label:"Philosophy"}].map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{padding:mobile?"6px 10px":"8px 16px",borderRadius:"8px",border:"none",cursor:"pointer",fontSize:mobile?"11px":"12px",letterSpacing:"1px",fontFamily:"'JetBrains Mono',monospace",backgroundColor:activeTab===tab.key?"#00d4aa15":"transparent",color:activeTab===tab.key?"#00d4aa":"#555"}}>{tab.label}</button>
           ))}
         </div>
       </div>
 
       <div style={{maxWidth:"1100px",margin:"0 auto",padding:mobile?"16px":"32px"}}>
+        {activeTab === "home" && (
+          <HomeView
+            schedule={schedule}
+            progress={progress}
+            toggle={handleToggle}
+            mobile={mobile}
+            activityLogs={activityLogs}
+            onOpenWorkout={setOpenWorkout}
+            onOpenActivity={setOpenActivity}
+            onEditDay={setEditDay}
+            onOpenLog={setLogSummary}
+            onNavigate={setActiveTab}
+          />
+        )}
         {activeTab === "schedule" && (
           <>
             {!mobile && <div style={{display:"flex",gap:"20px",marginBottom:"32px",flexWrap:"wrap"}}>
