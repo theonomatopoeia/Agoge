@@ -37,245 +37,221 @@ function useMobile(breakpoint = 480) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EXERCISE VISUAL COMPONENT (Phase 5 — replaces canvas animations)
-// Loads animated GIFs from ExerciseDB API, falls back to free-exercise-db photos
+// Loads exercise photos from free-exercise-db (public domain, GitHub-hosted)
+// No API key needed — just plain image URLs
 // ═══════════════════════════════════════════════════════════════════════════
 
-const EXERCISEDB_API_KEY = "500895f697msh70c2a4e7000ee04p1c940ejsn77313a50bca9";
-
-// Maps our exercise names → ExerciseDB search terms + free-exercise-db fallback IDs
 const GIF_SEARCH_MAP = {
-  "Arm Circles (slow)": { s: "arm circles", fb: null },
-  "Assisted Squat Hold": { s: "assisted squat", fb: null },
-  "BOSU Ball Balance": { s: "bosu ball", fb: null },
-  "Band Low-to-High Chop": { s: "band woodchop", fb: null },
-  "Band Overhead Stretch": { s: "band overhead", fb: null },
-  "Band Pallof Press": { s: "pallof press", fb: null },
-  "Band Pass-Throughs": { s: "band shoulder", fb: null },
-  "Band Pull-Aparts (heavy)": { s: "band pull apart", fb: "Band_Pull_Apart" },
-  "Band Pull-Aparts + Ext Rotation": { s: "band pull apart", fb: "Band_Pull_Apart" },
-  "Band Pull-Throughs": { s: "band pull through", fb: null },
-  "Band Seated Row": { s: "band row", fb: null },
-  "Band Woodchop (kneeling)": { s: "band woodchop", fb: null },
-  "Belt Squat": { s: "belt squat", fb: null },
-  "Bird Dogs": { s: "bird dog", fb: "Bird_Dog" },
-  "Bodyweight Split Squat Jump": { s: "split squat jump", fb: null },
-  "Bodyweight Squat": { s: "bodyweight squat", fb: "Bodyweight_Squat" },
-  "Book Openers": { s: "thoracic rotation", fb: null },
-  "Book Openers (side-lying)": { s: "thoracic rotation", fb: null },
-  "Broad Jumps": { s: "broad jump", fb: "Standing_Long_Jump" },
-  "Butterfly Stretch": { s: "butterfly stretch", fb: "Butterfly" },
-  "Cable External Rotation": { s: "cable external rotation", fb: "External_Rotation_with_Cable" },
-  "Chest-Supported DB Row": { s: "chest supported dumbbell row", fb: "Incline_Dumbbell_Row" },
-  "Clamshells": { s: "clamshell", fb: "Clam" },
-  "Cossack Squat": { s: "cossack squat", fb: null },
-  "Couch Stretch": { s: "hip flexor stretch", fb: "Kneeling_Hip_Flexor" },
-  "DB Arnold Press": { s: "arnold press", fb: "Arnold_Dumbbell_Press" },
-  "DB Sumo Squat": { s: "dumbbell sumo squat", fb: "Sumo_Deadlift" },
-  "DB Uppercut": { s: "dumbbell uppercut", fb: null },
-  "Dead Bug": { s: "dead bug", fb: "Dead_Bug" },
-  "Donkey Kicks": { s: "donkey kick", fb: "Donkey_Calf_Raises" },
-  "Doorframe Stretch": { s: "doorway chest stretch", fb: null },
-  "Dumbbell Bent-Over Row": { s: "dumbbell bent over row", fb: "Bent_Over_Dumbbell_Row" },
-  "Dumbbell Swings": { s: "dumbbell swing", fb: "Kettlebell_Sumo_Deadlift_High_Pull" },
-  "Dumbbell Woodchop": { s: "dumbbell woodchop", fb: null },
-  "Elevated Hip Flexor Stretch": { s: "hip flexor stretch", fb: "Kneeling_Hip_Flexor" },
-  "Explosive Step-Ups": { s: "step up", fb: "Dumbbell_Step_Ups" },
-  "Eyes-Closed Single-Leg Stand": { s: "single leg stand", fb: null },
-  "Figure-4 Stretch (supine)": { s: "figure four stretch", fb: "Piriformis-SMR" },
-  "Fire Hydrants": { s: "fire hydrant", fb: "Fire_Hydrant" },
-  "Frog Stretch": { s: "frog stretch", fb: null },
-  "Goblet Squat": { s: "goblet squat", fb: "Goblet_Squat" },
-  "Goblet Squat Hold": { s: "goblet squat", fb: "Goblet_Squat" },
-  "Good Mornings": { s: "good morning", fb: "Good_Morning" },
-  "Half-Kneeling DB Press": { s: "kneeling press", fb: null },
-  "Hindu Push-Ups": { s: "hindu push up", fb: "Hindu_Push-Up" },
-  "Hip Thrusts": { s: "hip thrust", fb: "Barbell_Hip_Thrust" },
-  "Inchworm": { s: "inchworm", fb: "Inchworm" },
-  "Inverted Row": { s: "inverted row", fb: "Inverted_Row" },
-  "Lacrosse Ball T-spine": { s: "foam roll", fb: null },
-  "Light DB Reverse Flyes": { s: "reverse fly", fb: "Dumbbell_Rear_Delt_Fly" },
-  "Light DB Y-T-W": { s: "prone y raise", fb: null },
-  "Lying Leg Raises": { s: "lying leg raise", fb: "Flat_Bench_Lying_Leg_Raise" },
-  "Med Ball Rotational Slam": { s: "medicine ball slam", fb: null },
-  "Med Ball Rotational Throw": { s: "medicine ball throw", fb: null },
-  "Nordic Curl (eccentric)": { s: "nordic curl", fb: null },
-  "Plank Shoulder Taps": { s: "plank tap", fb: "Plank" },
-  "Plate Pinch Walk": { s: "farmer walk", fb: null },
-  "Prone External Rotation": { s: "external rotation", fb: "External_Rotation_with_Cable" },
-  "Prone I-Y-T Raises": { s: "prone raise", fb: null },
-  "Prone Y-T Raises": { s: "prone raise", fb: null },
-  "Push Press (DB)": { s: "push press", fb: "Push_Press" },
-  "Push-Ups + Side Plank": { s: "push up", fb: "Push-Up_Wide" },
-  "Quadruped Rockbacks": { s: "quadruped rock", fb: "All_Fours_Quad_Stretch" },
-  "Resistance Band Row": { s: "band row", fb: null },
-  "Reverse Dumbbell Flyes": { s: "reverse fly", fb: "Dumbbell_Rear_Delt_Fly" },
-  "Reverse Lunge (weighted)": { s: "reverse lunge", fb: "Dumbbell_Lunges_Walking" },
-  "Scapular Push-Ups": { s: "scapular push up", fb: null },
-  "Seated Hip Circles": { s: "seated hip circle", fb: null },
-  "Seated Pigeon (chair)": { s: "seated figure four", fb: null },
-  "Seated Spinal Waves": { s: "cat cow", fb: "Cat_Stretch" },
-  "Side-Lying External Rotation": { s: "side lying external rotation", fb: "Side-Lying_Floor_Stretch" },
-  "Single-Leg Glute Bridge": { s: "single leg bridge", fb: "Single-Leg_Glute_Bridge" },
-  "Spiderman Push-Ups": { s: "spiderman push up", fb: null },
-  "Spiderman Stretch": { s: "spiderman stretch", fb: null },
-  "Split Squat (floor)": { s: "split squat", fb: "Single_Leg_Squat" },
-  "Squat Jumps": { s: "squat jump", fb: "Freehand_Jump_Squat" },
-  "Staggered Stance RDL": { s: "single leg romanian deadlift", fb: "Romanian_Deadlift" },
-  "Standing Hip Circles": { s: "hip circle", fb: null },
-  "Standing Hip Flexor Stretch": { s: "hip flexor stretch", fb: "Kneeling_Hip_Flexor" },
-  "Standing Quad/Hip Flexor Pull": { s: "quad stretch", fb: "All_Fours_Quad_Stretch" },
-  "Star Excursion Balance": { s: "single leg reach", fb: null },
-  "Step-Up (weighted)": { s: "dumbbell step up", fb: "Dumbbell_Step_Ups" },
-  "Step-Up to Knee Drive": { s: "step up", fb: "Dumbbell_Step_Ups" },
-  "Suitcase Carry": { s: "suitcase carry", fb: null },
-  "TRX / Ring Row": { s: "inverted row", fb: "Inverted_Row" },
-  "Thomas Stretch (off table)": { s: "hip flexor stretch", fb: "Kneeling_Hip_Flexor" },
-  "Thread the Needle (hip)": { s: "thread the needle", fb: null },
-  "V-Ups": { s: "v up", fb: "V-Up" },
-  "Waiter Walk": { s: "overhead carry", fb: null },
-  "Walking Lunges": { s: "walking lunge", fb: "Dumbbell_Lunges_Walking" },
-  "Wall Angels": { s: "wall angel", fb: null },
-  "Wall Lat Stretch": { s: "lat stretch", fb: null },
-  "Wall Sit": { s: "wall sit", fb: "Wall_Squat" },
-  "Wall Slides": { s: "wall slide", fb: null },
-  "World's Greatest Stretch": { s: "greatest stretch", fb: null },
-  "Zercher Squat": { s: "zercher squat", fb: null },
+  "Arm Circles (slow)": { fb: null },
+  "Assisted Squat Hold": { fb: "Bodyweight_Squat" },
+  "BOSU Ball Balance": { fb: null },
+  "Band Low-to-High Chop": { fb: null },
+  "Band Overhead Stretch": { fb: null },
+  "Band Pallof Press": { fb: null },
+  "Band Pass-Throughs": { fb: "Band_Pull_Apart" },
+  "Band Pull-Aparts (heavy)": { fb: "Band_Pull_Apart" },
+  "Band Pull-Aparts + Ext Rotation": { fb: "Band_Pull_Apart" },
+  "Band Pull-Throughs": { fb: null },
+  "Band Seated Row": { fb: null },
+  "Band Woodchop (kneeling)": { fb: null },
+  "Belt Squat": { fb: "Barbell_Squat" },
+  "Bird Dogs": { fb: "Bird_Dog" },
+  "Bodyweight Split Squat Jump": { fb: "Split_Squat_with_Dumbbells" },
+  "Bodyweight Squat": { fb: "Bodyweight_Squat" },
+  "Book Openers": { fb: null },
+  "Book Openers (side-lying)": { fb: null },
+  "Broad Jumps": { fb: "Standing_Long_Jump" },
+  "Bulgarian Split Squat": { fb: "Single_Leg_Squat" },
+  "Butterfly Stretch": { fb: "Butterfly" },
+  "Cable External Rotation": { fb: "External_Rotation_with_Cable" },
+  "Cable Low-to-High Chop": { fb: null },
+  "Cable Row (seated or standing)": { fb: "Seated_Cable_Rows" },
+  "Cat-Cow + Thread the Needle": { fb: "Cat_Stretch" },
+  "Chest-Supported DB Row": { fb: "Incline_Dumbbell_Row" },
+  "Clamshells": { fb: "Clam" },
+  "Cossack Squat": { fb: "Side_Lunge" },
+  "Couch Stretch": { fb: "Kneeling_Hip_Flexor" },
+  "DB Arnold Press": { fb: "Arnold_Dumbbell_Press" },
+  "DB Sumo Squat": { fb: "Sumo_Deadlift" },
+  "DB Uppercut": { fb: null },
+  "Dead Bug": { fb: "Dead_Bug" },
+  "Deep Squat Hold + Shift": { fb: "Bodyweight_Squat" },
+  "Donkey Kicks": { fb: "Donkey_Calf_Raises" },
+  "Doorframe Stretch": { fb: null },
+  "Dumbbell Bent-Over Row": { fb: "Bent_Over_Dumbbell_Row" },
+  "Dumbbell Swings": { fb: "One-Arm_Kettlebell_Swings" },
+  "Dumbbell Woodchop": { fb: null },
+  "Elevated Hip Flexor Stretch": { fb: "Kneeling_Hip_Flexor" },
+  "Explosive Step-Ups": { fb: "Dumbbell_Step_Ups" },
+  "Eyes-Closed Single-Leg Stand": { fb: null },
+  "Face Pulls": { fb: "Face_Pull" },
+  "Farmer Carry": { fb: null },
+  "Figure-4 Stretch (supine)": { fb: "Piriformis-SMR" },
+  "Fire Hydrants": { fb: "Fire_Hydrant" },
+  "Foam Roll: T-spine + Lats": { fb: null },
+  "Frog Stretch": { fb: null },
+  "Front Squat (DB or Goblet)": { fb: "Goblet_Squat" },
+  "Glute Bridges": { fb: "Barbell_Glute_Bridge" },
+  "Goblet Squat": { fb: "Goblet_Squat" },
+  "Goblet Squat Hold": { fb: "Goblet_Squat" },
+  "Good Mornings": { fb: "Good_Morning" },
+  "Half-Kneeling Cable Chop (high to low)": { fb: null },
+  "Half-Kneeling DB Press": { fb: "Dumbbell_One-Arm_Shoulder_Press" },
+  "Half-Kneeling Hip Flexor Stretch": { fb: "Kneeling_Hip_Flexor" },
+  "Hanging Leg Raises (or knee tucks)": { fb: "Hanging_Leg_Raise" },
+  "Hindu Push-Ups": { fb: "Hindu_Push-Up" },
+  "Hip CARs (Controlled Articular Rotations)": { fb: null },
+  "Hip Thrusts": { fb: "Barbell_Hip_Thrust" },
+  "Inchworm": { fb: "Inchworm" },
+  "Inverted Row": { fb: "Inverted_Row" },
+  "Kettlebell Swings": { fb: "One-Arm_Kettlebell_Swings" },
+  "Lacrosse Ball T-spine": { fb: null },
+  "Landmine Press (single arm)": { fb: "Dumbbell_One-Arm_Shoulder_Press" },
+  "Light DB Reverse Flyes": { fb: "Dumbbell_Rear_Delt_Fly" },
+  "Light DB Y-T-W": { fb: null },
+  "Lunge + Reach Rotation": { fb: "Dumbbell_Lunges_Walking" },
+  "Lying Leg Raises": { fb: "Flat_Bench_Lying_Leg_Raise" },
+  "Med Ball Rotational Slam": { fb: null },
+  "Med Ball Rotational Throw": { fb: null },
+  "Nordic Curl (eccentric)": { fb: null },
+  "90/90 Hip Switches": { fb: null },
+  "Pallof Press (cable)": { fb: null },
+  "Pigeon Stretch": { fb: null },
+  "Plank Shoulder Taps": { fb: "Plank" },
+  "Plate Pinch Walk": { fb: null },
+  "Prone External Rotation": { fb: "External_Rotation_with_Cable" },
+  "Prone I-Y-T Raises": { fb: null },
+  "Prone Y-T Raises": { fb: null },
+  "Push Press (DB)": { fb: "Push_Press" },
+  "Push-Up to Rotation (T-Push-Up)": { fb: "Push-Up_Wide" },
+  "Push-Ups + Side Plank": { fb: "Push-Up_Wide" },
+  "Quadruped Rockbacks": { fb: "All_Fours_Quad_Stretch" },
+  "Resistance Band Row": { fb: null },
+  "Reverse Dumbbell Flyes": { fb: "Dumbbell_Rear_Delt_Fly" },
+  "Reverse Lunge (weighted)": { fb: "Dumbbell_Lunges_Walking" },
+  "Reverse Lunge to Knee Drive": { fb: "Dumbbell_Lunges_Walking" },
+  "Scapular Push-Ups": { fb: null },
+  "Seated Hip Circles": { fb: null },
+  "Seated Pigeon (chair)": { fb: null },
+  "Seated Spinal Waves": { fb: "Cat_Stretch" },
+  "Shoulder CARs": { fb: null },
+  "Side-Lying External Rotation": { fb: "Side-Lying_Floor_Stretch" },
+  "Single-Arm Dumbbell Row": { fb: "Bent_Over_Dumbbell_Row" },
+  "Single-Leg Balance Reach (3-way)": { fb: null },
+  "Single-Leg Glute Bridge": { fb: "Single-Leg_Glute_Bridge" },
+  "Single-Leg Romanian Deadlift (DB)": { fb: "Romanian_Deadlift" },
+  "Spiderman Push-Ups": { fb: null },
+  "Spiderman Stretch": { fb: null },
+  "Split Squat (floor)": { fb: "Split_Squat_with_Dumbbells" },
+  "Squat Jumps": { fb: "Freehand_Jump_Squat" },
+  "Staggered Stance RDL": { fb: "Romanian_Deadlift" },
+  "Standing Hip Circles": { fb: null },
+  "Standing Hip Flexor Stretch": { fb: "Kneeling_Hip_Flexor" },
+  "Standing Quad/Hip Flexor Pull": { fb: "All_Fours_Quad_Stretch" },
+  "Star Excursion Balance": { fb: null },
+  "Step-Up (weighted)": { fb: "Dumbbell_Step_Ups" },
+  "Step-Up to Knee Drive": { fb: "Dumbbell_Step_Ups" },
+  "Suitcase Carry": { fb: null },
+  "Supine Hip Flexor Stretch": { fb: "Kneeling_Hip_Flexor" },
+  "TRX / Ring Row": { fb: "Inverted_Row" },
+  "TRX or Cable Y-T-W Raises": { fb: null },
+  "Thomas Stretch (off table)": { fb: "Kneeling_Hip_Flexor" },
+  "Thread the Needle (hip)": { fb: null },
+  "V-Ups": { fb: "V-Up" },
+  "Waiter Walk": { fb: null },
+  "Walking Lunges": { fb: "Dumbbell_Lunges_Walking" },
+  "Wall Angels": { fb: null },
+  "Wall Lat Stretch": { fb: null },
+  "Wall Sit": { fb: "Wall_Squat" },
+  "Wall Slides": { fb: null },
+  "World's Greatest Stretch": { fb: null },
+  "Zercher Squat": { fb: "Barbell_Squat" },
+  "Band External Rotations": { fb: null },
+  "Band Pull-Aparts": { fb: "Band_Pull_Apart" },
+  "Box Jumps": { fb: "Freehand_Jump_Squat" },
+  "Dead Hang": { fb: null },
 };
 
 const GITHUB_IMG_BASE = "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises";
 
-// Cache for ExerciseDB IDs so we only search once per exercise
-function getEdbCache() {
-  try { return JSON.parse(localStorage.getItem("edb_cache") || "{}"); } catch { return {}; }
-}
-function setEdbCache(cache) {
-  try { localStorage.setItem("edb_cache", JSON.stringify(cache)); } catch {}
-}
-
 function ExerciseVisual({ exerciseName, width = 380, height = 340 }) {
-  const [gifUrl, setGifUrl] = useState(null);
-  const [fallbackImg, setFallbackImg] = useState(null);
+  const [imgError, setImgError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [showSecond, setShowSecond] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const map = GIF_SEARCH_MAP[exerciseName];
-    if (!map) { setLoading(false); setError(true); return; }
+  const map = GIF_SEARCH_MAP[exerciseName];
+  const hasImg = map && map.fb && !imgError;
 
-    async function loadGif() {
-      // Check localStorage cache for ExerciseDB ID
-      const cache = getEdbCache();
-      let edbId = cache[exerciseName];
+  if (hasImg) {
+    const img0 = `${GITHUB_IMG_BASE}/${map.fb}/0.jpg`;
+    const img1 = `${GITHUB_IMG_BASE}/${map.fb}/1.jpg`;
 
-      if (!edbId && map.s) {
-        // Search ExerciseDB by name
-        try {
-          const encoded = encodeURIComponent(map.s.toLowerCase());
-          const res = await fetch(
-            `https://exercisedb.p.rapidapi.com/exercises/name/${encoded}?limit=1`,
-            { headers: { "X-RapidAPI-Key": EXERCISEDB_API_KEY, "X-RapidAPI-Host": "exercisedb.p.rapidapi.com" } }
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.length > 0 && data[0].id) {
-              edbId = data[0].id;
-              cache[exerciseName] = edbId;
-              setEdbCache(cache);
-            }
-          }
-        } catch (e) { /* Network error — will fall back */ }
-      }
-
-      if (!cancelled && edbId) {
-        // Build the GIF URL (loads directly in img tag with API key as query param)
-        setGifUrl(
-          `https://exercisedb.p.rapidapi.com/image?exerciseId=${edbId}&resolution=180&rapidapi-key=${EXERCISEDB_API_KEY}`
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Fallback: free-exercise-db photo from GitHub
-      if (!cancelled && map.fb) {
-        setFallbackImg(`${GITHUB_IMG_BASE}/${map.fb}/0.jpg`);
-        setLoading(false);
-        return;
-      }
-
-      // No source available
-      if (!cancelled) { setLoading(false); setError(true); }
-    }
-
-    loadGif();
-    return () => { cancelled = true; };
-  }, [exerciseName]);
-
-  // ─── TEXT FALLBACK (no image available) ───
-  if (error || (!loading && !gifUrl && !fallbackImg)) {
-    const data = EX_DATA[exerciseName];
-    const map = GIF_SEARCH_MAP[exerciseName];
     return (
       <div style={{
         width, height, display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"center",
         backgroundColor:"#0a0a10", borderRadius:"16px",
-        border:"1px solid #1a1a22", padding:"20px", gap:"12px",
+        border:"1px solid #1a1a22", overflow:"hidden", position:"relative",
       }}>
-        <div style={{ width:64, height:64, borderRadius:"50%", backgroundColor:"#111118",
-          border:"1px solid #1e1e28", display:"flex", alignItems:"center",
-          justifyContent:"center", fontSize:"28px" }}>🏋️</div>
-        <div style={{ color:"#888", fontSize:"11px", letterSpacing:"1.5px",
-          textTransform:"uppercase", textAlign:"center" }}>
-          {data?.muscles?.split(",")[0] || "exercise"}
-        </div>
-        {data?.equip && (
-          <div style={{ color:"#555", fontSize:"11px" }}>
-            {data.equip}
+        {loading && (
+          <div style={{ position:"absolute", inset:0, display:"flex",
+            alignItems:"center", justifyContent:"center", color:"#333", fontSize:"12px" }}>
+            Loading...
+          </div>
+        )}
+        <img
+          src={showSecond ? img1 : img0}
+          alt={exerciseName}
+          onLoad={() => setLoading(false)}
+          onError={() => { setLoading(false); setImgError(true); }}
+          style={{
+            maxWidth:"100%", maxHeight:"100%", objectFit:"contain",
+            opacity: loading ? 0 : 1, transition:"opacity 0.3s ease",
+            borderRadius:"8px", padding:"8px",
+          }}
+        />
+        {!loading && !imgError && (
+          <div style={{
+            position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)",
+            display:"flex", gap:"8px", backgroundColor:"rgba(0,0,0,0.6)",
+            borderRadius:"12px", padding:"4px 10px",
+          }}>
+            <button onClick={(e)=>{e.stopPropagation();setShowSecond(false);}} style={{
+              width:8, height:8, borderRadius:"50%", border:"none", cursor:"pointer",
+              backgroundColor: !showSecond ? "#00d4aa" : "#555",
+            }} />
+            <button onClick={(e)=>{e.stopPropagation();setShowSecond(true);}} style={{
+              width:8, height:8, borderRadius:"50%", border:"none", cursor:"pointer",
+              backgroundColor: showSecond ? "#00d4aa" : "#555",
+            }} />
           </div>
         )}
       </div>
     );
   }
 
-  const imgSrc = gifUrl || fallbackImg;
-
+  const data = EX_DATA[exerciseName];
   return (
     <div style={{
-      width, height, display:"flex", alignItems:"center", justifyContent:"center",
+      width, height, display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center",
       backgroundColor:"#0a0a10", borderRadius:"16px",
-      border:"1px solid #1a1a22", overflow:"hidden", position:"relative",
+      border:"1px solid #1a1a22", padding:"20px", gap:"12px",
     }}>
-      {loading && (
-        <div style={{ position:"absolute", inset:0, display:"flex",
-          alignItems:"center", justifyContent:"center", color:"#333", fontSize:"12px" }}>
-          Loading...
-        </div>
-      )}
-      {imgSrc && (
-        <img
-          src={imgSrc}
-          alt={exerciseName}
-          onLoad={() => setLoading(false)}
-          onError={() => {
-            setLoading(false);
-            // If ExerciseDB GIF failed, try fallback
-            if (gifUrl && GIF_SEARCH_MAP[exerciseName]?.fb) {
-              setGifUrl(null);
-              setFallbackImg(`${GITHUB_IMG_BASE}/${GIF_SEARCH_MAP[exerciseName].fb}/0.jpg`);
-            } else {
-              setError(true);
-            }
-          }}
-          style={{
-            maxWidth:"100%", maxHeight:"100%", objectFit:"contain",
-            opacity: loading ? 0 : 1, transition:"opacity 0.3s ease",
-          }}
-        />
+      <div style={{ width:64, height:64, borderRadius:"50%", backgroundColor:"#111118",
+        border:"1px solid #1e1e28", display:"flex", alignItems:"center",
+        justifyContent:"center", fontSize:"28px" }}>🏋️</div>
+      <div style={{ color:"#888", fontSize:"11px", letterSpacing:"1.5px",
+        textTransform:"uppercase", textAlign:"center" }}>
+        {data?.muscles?.split(",")[0] || exerciseName}
+      </div>
+      {data?.equip && (
+        <div style={{ color:"#555", fontSize:"11px" }}>{data.equip}</div>
       )}
     </div>
   );
 }
+
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -990,9 +966,14 @@ function ExerciseDetailView({ exerciseName, sets, sectionColor, onBack, mobile }
   const canvasW = mobile ? 320 : 380;
   const canvasH = mobile ? 290 : 340;
   if (!data) return (
-    <div style={{padding:"20px"}}>
-      <button onClick={onBack} style={{background:"none",border:"none",color:"#00d4aa",cursor:"pointer",fontSize:"13px",marginBottom:"16px"}}>&larr; Back</button>
-      <p style={{color:"#888"}}>Detail coming soon for "{exerciseName}".</p>
+    <div style={{padding:"20px",animation:"slideIn 0.25s ease-out"}}>
+      <style>{`@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}`}</style>
+      <button onClick={onBack} style={{background:"none",border:"none",color:"#00d4aa",cursor:"pointer",fontSize:"13px",marginBottom:"16px",fontFamily:"'JetBrains Mono',monospace"}}>&larr; Back to workout</button>
+      <div style={{fontSize:"10px",letterSpacing:"2px",color:sectionColor,fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>{sets}</div>
+      <h3 style={{fontSize:mobile?"18px":"22px",fontWeight:700,color:"#fff",marginBottom:"16px",fontFamily:"'Instrument Sans',sans-serif"}}>{exerciseName}</h3>
+      <div style={{backgroundColor:"#0a0a10",borderRadius:"16px",border:"1px solid #1a1a22",marginBottom:"20px",overflow:"hidden",display:"flex",justifyContent:"center"}}>
+        <ExerciseVisual exerciseName={exerciseName} width={canvasW} height={canvasH} />
+      </div>
     </div>
   );
   return (
@@ -1201,7 +1182,7 @@ function WorkoutDetail({ program, onClose, mobile, swaps, onRequestSwap }) {
                     const included = item.included !== false;
                     const displayName = getDisplayName(item.exercise);
                     const swapped = isSwappedEx(item.exercise);
-                    const has = !!EX_DATA[displayName];
+                    const has = !!EX_DATA[displayName] || !!GIF_SEARCH_MAP[displayName];
                     const hasAlts = !!EXERCISE_ALTERNATIVES[item.exercise];
                     const timeStr = item.time ? `${Math.round(item.time)}m` : "";
                     return (
