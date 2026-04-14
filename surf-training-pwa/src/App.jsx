@@ -1304,12 +1304,12 @@ function ActivityDetailModal({ activityKey, onClose, mobile }) {
 
 function CustomMotivationModal({ onClose, mobile }) {
   return (
-    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,backgroundColor:"rgba(0,0,0,0.9)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:"32px",backdropFilter:"blur(12px)"}} onClick={onClose}>
-      <div style={{textAlign:"center",maxWidth:"500px"}} onClick={e => e.stopPropagation()}>
-        <div style={{fontSize:mobile?"32px":"48px",fontWeight:800,color:"#f39c12",lineHeight:1.2,fontFamily:"'Instrument Sans',sans-serif",letterSpacing:"-1px",textTransform:"uppercase",marginBottom:"24px"}}>
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,backgroundColor:"rgba(0,0,0,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:"24px",backdropFilter:"blur(6px)"}} onClick={onClose}>
+      <div style={{backgroundColor:"#111116",borderRadius:"20px",padding:mobile?"32px 24px":"44px 40px",maxWidth:"420px",width:"100%",textAlign:"center",border:"1px solid #ff4757aa",boxShadow:"0 0 60px rgba(255,71,87,0.15)"}} onClick={e => e.stopPropagation()}>
+        <div style={{fontSize:mobile?"26px":"36px",fontWeight:800,color:"#ff4757",lineHeight:1.25,fontFamily:"'Instrument Sans',sans-serif",letterSpacing:"-0.5px",textTransform:"uppercase"}}>
           That's good boy keep attacking
         </div>
-        <button onClick={onClose} style={{padding:"12px 32px",backgroundColor:"#f39c1222",border:"1px solid #f39c1244",borderRadius:"12px",color:"#f39c12",fontSize:"13px",fontFamily:"'JetBrains Mono',monospace",cursor:"pointer",marginTop:"16px"}}>Close</button>
+        <button onClick={onClose} style={{marginTop:"28px",padding:"10px 28px",backgroundColor:"#ff475715",border:"1px solid #ff475733",borderRadius:"10px",color:"#ff4757",fontSize:"12px",fontFamily:"'JetBrains Mono',monospace",cursor:"pointer",letterSpacing:"1px"}}>Close</button>
       </div>
     </div>
   );
@@ -1350,6 +1350,8 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
   const [stoke, setStoke] = useState(3);
   const [showSpotPicker, setShowSpotPicker] = useState(false);
   const [showBoardPicker, setShowBoardPicker] = useState(false);
+  const [customSpot, setCustomSpot] = useState(false);
+  const [customBoard, setCustomBoard] = useState(false);
 
   // Softball fields
   const [gameResult, setGameResult] = useState(null); // 'W' or 'L' or null
@@ -1388,7 +1390,7 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
   const accentColor = isSurf ? "#48dbfb" : isGym ? "#00d4aa" : isSoftball ? "#c39bd3" : "#82e0aa";
 
   // Picker sub-component
-  const PickerList = ({ items, selected, onSelect, onDone, renderItem }) => (
+  const PickerList = ({ items, selected, onSelect, onDone, renderItem, onCustom }) => (
     <div style={{position:"fixed",inset:0,zIndex:10002,display:"flex",alignItems:"flex-end",justifyContent:"center",backgroundColor:"rgba(0,0,0,0.6)"}}>
       <div style={{width:"100%",maxWidth:"480px",maxHeight:"70vh",backgroundColor:"#14141c",borderRadius:"20px 20px 0 0",padding:"16px 16px 32px",overflowY:"auto",paddingBottom:"env(safe-area-inset-bottom,16px)"}}>
         <div style={{width:"36px",height:"4px",borderRadius:"2px",backgroundColor:"#333",margin:"0 auto 16px"}} />
@@ -1408,6 +1410,16 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
             </button>
           );
         })}
+        {onCustom && (
+          <button onClick={() => { onCustom(); onDone(); }} style={{
+            display:"block",width:"100%",textAlign:"left",padding:"14px 16px",marginTop:"6px",
+            backgroundColor:"#f39c1210",border:"1px solid #f39c1233",
+            borderRadius:"10px",cursor:"pointer",color:"#f39c12",
+            fontSize:"14px",fontFamily:"'Instrument Sans',sans-serif",
+          }}>
+            Custom...
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1435,15 +1447,29 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
         {isSurf && (
           <div style={{marginBottom:"16px"}}>
             <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>SPOT</div>
-            <button onClick={() => setShowSpotPicker(true)} style={{
-              width:"100%",textAlign:"left",padding:"12px 14px",backgroundColor:"#0c0c10",
-              border:"1px solid #1a1a1f",borderRadius:"10px",color:"#fff",fontSize:"14px",
-              cursor:"pointer",fontFamily:"'Instrument Sans',sans-serif",
-              display:"flex",justifyContent:"space-between",alignItems:"center",
-            }}>
-              <span>{spot}</span>
-              <span style={{color:"#555",fontSize:"12px"}}>▾</span>
-            </button>
+            {customSpot ? (
+              <div style={{display:"flex",gap:"8px"}}>
+                <input
+                  type="text"
+                  value={spot}
+                  onChange={e => setSpot(e.target.value)}
+                  placeholder="Enter spot name..."
+                  autoFocus
+                  style={{flex:1,padding:"12px 14px",backgroundColor:"#0c0c10",border:"1px solid #f39c1244",borderRadius:"10px",color:"#fff",fontSize:"14px",fontFamily:"'Instrument Sans',sans-serif",outline:"none"}}
+                />
+                <button onClick={() => { setCustomSpot(false); if (!spot.trim()) setSpot(SURF_SPOTS[0]); }} style={{padding:"12px",backgroundColor:"#1a1a1f",border:"1px solid #333",borderRadius:"10px",color:"#888",fontSize:"11px",cursor:"pointer",fontFamily:"'JetBrains Mono',monospace",flexShrink:0}}>List</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowSpotPicker(true)} style={{
+                width:"100%",textAlign:"left",padding:"12px 14px",backgroundColor:"#0c0c10",
+                border:"1px solid #1a1a1f",borderRadius:"10px",color:"#fff",fontSize:"14px",
+                cursor:"pointer",fontFamily:"'Instrument Sans',sans-serif",
+                display:"flex",justifyContent:"space-between",alignItems:"center",
+              }}>
+                <span>{spot}</span>
+                <span style={{color:"#555",fontSize:"12px"}}>▾</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -1451,15 +1477,29 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
         {isSurf && (
           <div style={{marginBottom:"16px"}}>
             <div style={{fontSize:"10px",letterSpacing:"1.5px",color:"#555",fontFamily:"'JetBrains Mono',monospace",marginBottom:"6px"}}>BOARD</div>
-            <button onClick={() => setShowBoardPicker(true)} style={{
-              width:"100%",textAlign:"left",padding:"12px 14px",backgroundColor:"#0c0c10",
-              border:"1px solid #1a1a1f",borderRadius:"10px",color:"#fff",fontSize:"14px",
-              cursor:"pointer",fontFamily:"'Instrument Sans',sans-serif",
-              display:"flex",justifyContent:"space-between",alignItems:"center",
-            }}>
-              <span>{board}</span>
-              <span style={{color:"#555",fontSize:"12px"}}>▾</span>
-            </button>
+            {customBoard ? (
+              <div style={{display:"flex",gap:"8px"}}>
+                <input
+                  type="text"
+                  value={board}
+                  onChange={e => setBoard(e.target.value)}
+                  placeholder="Enter board name..."
+                  autoFocus
+                  style={{flex:1,padding:"12px 14px",backgroundColor:"#0c0c10",border:"1px solid #f39c1244",borderRadius:"10px",color:"#fff",fontSize:"14px",fontFamily:"'Instrument Sans',sans-serif",outline:"none"}}
+                />
+                <button onClick={() => { setCustomBoard(false); if (!board.trim()) setBoard(BOARDS[0].name); }} style={{padding:"12px",backgroundColor:"#1a1a1f",border:"1px solid #333",borderRadius:"10px",color:"#888",fontSize:"11px",cursor:"pointer",fontFamily:"'JetBrains Mono',monospace",flexShrink:0}}>List</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowBoardPicker(true)} style={{
+                width:"100%",textAlign:"left",padding:"12px 14px",backgroundColor:"#0c0c10",
+                border:"1px solid #1a1a1f",borderRadius:"10px",color:"#fff",fontSize:"14px",
+                cursor:"pointer",fontFamily:"'Instrument Sans',sans-serif",
+                display:"flex",justifyContent:"space-between",alignItems:"center",
+              }}>
+                <span>{board}</span>
+                <span style={{color:"#555",fontSize:"12px"}}>▾</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -1575,9 +1615,10 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
         {showSpotPicker && (
           <PickerList
             items={SURF_SPOTS}
-            selected={spot}
-            onSelect={setSpot}
+            selected={customSpot ? null : spot}
+            onSelect={(val) => { setCustomSpot(false); setSpot(val); }}
             onDone={() => setShowSpotPicker(false)}
+            onCustom={() => { setCustomSpot(true); setSpot(""); }}
           />
         )}
 
@@ -1585,9 +1626,10 @@ function SessionLogSheet({ activityKey, context, date, onSubmit, onSkip, onClose
         {showBoardPicker && (
           <PickerList
             items={BOARDS}
-            selected={board}
-            onSelect={setBoard}
+            selected={customBoard ? null : board}
+            onSelect={(val) => { setCustomBoard(false); setBoard(val); }}
             onDone={() => setShowBoardPicker(false)}
+            onCustom={() => { setCustomBoard(true); setBoard(""); }}
             renderItem={(b, sel) => (
               <div>
                 <span style={{color:sel ? accentColor : "#ccc"}}>{b.name}</span>
@@ -2204,6 +2246,8 @@ function ProgressView({ schedule, progress, toggle, mobile, reset, activityLogs 
       const key = dateKey(d.date);
       const dayP = progress[key] || {};
       if (d.am && d.am.type === 'gym') { totalGym++; if (dayP.gym) doneGym++; }
+      else if (d.am && d.am.type === 'surf') { totalSurf++; if (dayP.surf) doneSurf++; }
+      else if (d.am && d.am.type) { totalOther++; if (dayP.alt) doneOther++; }
       if (d.pm) {
         if (d.pm.type === 'surf') { totalSurf++; if (dayP.surf) doneSurf++; }
         else if (d.pm.type === 'softball') { totalOther++; if (dayP.softball) doneOther++; }
@@ -2991,6 +3035,10 @@ export default function SurfTrainingSchedule() {
   const [overrides, setOverrides] = useLocalState('surf-overrides', {});
   const [swaps, setSwaps] = useLocalState('surf-swaps', {});
 
+  // Ref to avoid stale closure in handleToggle
+  const progressRef = useRef(progress);
+  useEffect(() => { progressRef.current = progress; }, [progress]);
+
   // Session log sheet state
   const [logSheet, setLogSheet] = useState(null); // { date, activityKey, context }
   const [logSummary, setLogSummary] = useState(null); // { date, activityKey, log, context }
@@ -3028,7 +3076,8 @@ export default function SurfTrainingSchedule() {
   // Wrapped toggle: when checking ON, open log sheet. When unchecking, remove log.
   const handleToggle = useCallback((date, activityKey, context) => {
     const dk = dateKey(date);
-    const isCurrentlyDone = !!(progress[dk] && progress[dk][activityKey]);
+    const currentProgress = progressRef.current;
+    const isCurrentlyDone = !!(currentProgress[dk] && currentProgress[dk][activityKey]);
 
     if (isCurrentlyDone) {
       // Unchecking — toggle off and remove log
@@ -3039,7 +3088,7 @@ export default function SurfTrainingSchedule() {
       toggle(date, activityKey);
       setLogSheet({ date, activityKey, context: context || {} });
     }
-  }, [progress, toggle, removeLog]);
+  }, [toggle, removeLog]);
 
   const handleLogSubmit = (logData) => {
     if (logSheet) {
